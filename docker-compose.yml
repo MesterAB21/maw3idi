@@ -1,0 +1,21 @@
+services:
+  maw3idi:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - API_BACKEND_URL=http://maw3idi-backend:8000
+    container_name: maw3idi-frontend
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+    networks:
+      - default
+      - maw3idi-net
+
+networks:
+  maw3idi-net:
+    name: maw3idi-net
+    external: true
