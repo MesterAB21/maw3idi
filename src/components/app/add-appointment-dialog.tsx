@@ -26,6 +26,50 @@ const toKey = (d: Date) =>
 const toISODate = (d: Date) =>
   `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
+/** 0781569010 → +213781569010. Accepts 0X.., +213X.. and 00213X... */
+function normalizePhone(raw: string): string | null {
+  const cleaned = raw.replace(/[\s.\-()]/g, "");
+  let digits = cleaned;
+  if (digits.startsWith("+")) {
+    if (!/^\+213[567]\d{8}$/.test(digits)) return null;
+    return digits;
+  }
+  if (digits.startsWith("00213")) digits = digits.slice(2);
+  if (/^0[567]\d{8}$/.test(digits)) return `+213${digits.slice(1)}`;
+  if (/^213[567]\d{8}$/.test(digits)) return `+${digits}`;
+  return null;
+}
+
+/** Mask auto : les chiffres tapés se placent en JJ/MM/AAAA (sans taper "/"). */
+function maskDob(raw: string): string {
+  const digits = raw.replace(/\D/g, "").slice(0, 8);
+  const parts: string[] = [];
+  if (digits.length > 0) parts.push(digits.slice(0, 2));
+  if (digits.length > 2) parts.push(digits.slice(2, 4));
+  if (digits.length > 4) parts.push(digits.slice(4, 8));
+  return parts.join("/");
+}
+
+type DobError = "invalid" | "future" | null;
+
+/** Valide JJ/MM/AAAA : date réelle et strictement passée. Retourne l'ISO ou l'erreur. */
+function parseDob(value: string): { iso: string } | { error: Exclude<DobError, null> } {
+  const digits = value.replace(/\D/g, "");
+  if (digits.length !== 8) return { error: "invalid" };
+  const dd = parseInt(digits.slice(0, 2), 10);
+  const mm = parseInt(digits.slice(2, 4), 10);
+  const yyyy = parseInt(digits.slice(4, 8), 10);
+  if (mm < 1 || mm > 12 || dd < 1 || dd > 31 || yyyy < 1900) return { error: "invalid" };
+  const dt = new Date(yyyy, mm - 1, dd);
+  if (dt.getFullYear() !== yyyy || dt.getMonth() !== mm - 1 || dt.getDate() !== dd) {
+    return { error: "invalid" };
+  }
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  if (dt.getTime() >= today.getTime()) return { error: "future" };
+  return { iso: `${pad(yyyy)}-${pad(mm)}-${pad(dd)}` };
+}
+
 export function AddAppointmentDialog({
   open,
   onOpenChange,
@@ -62,6 +106,7 @@ function AddAppointmentForm({
   onClose: () => void;
 }) {
   const { t, createAppointment, fetchAppointments, fetchAvailableSlots } = useApp();
+  const { t, createAppointment, fetchAppointments, fetchAvailableSlots, fetchCalendar } = useApp();
   const { toast } = useToast();
 
   const [date, setDate] = React.useState<Date>(() => initialDate ?? TOMORROW);
@@ -74,6 +119,18 @@ function AddAppointmentForm({
   const [isLoading, setIsLoading] = React.useState(false);
   const [slots, setSlots] = React.useState<string[]>([]);
   const [slotsLoading, setSlotsLoading] = React.useState(false);
+  const [fieldErrors, setFieldErrors] = React.useState<{ name?: string; phone?: string; dob?: string }>({});
+
+  // Pré-chauffage du cache : au montage du form, on déclenche silencieusement
+  // un fetchCalendar sur le mois courant. Cela remplit le cache Redis côté
+  // backend (gcal:busy + slots par jour). Ainsi, le fetchAvailableSlots
+  // ci-dessous arrive toujours sur un cache chaud.
+  React.useEffect(() => {
+    const start = new Date(date.getFullYear(), date.getMonth(), 1);
+    const end = new Date(date.getFullYear(), date.getMonth() + 2, 1);
+    fetchCalendar(start.toISOString(), end.toISOString()).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);  // Une seule fois à l'ouverture
 
   // Real bookable times for the selected day (working hours − appointments −
   // Google busy, stepped by slot duration). Sent as YYYY-MM-DD.
@@ -102,25 +159,49 @@ function AddAppointmentForm({
     };
   }, [date, fetchAvailableSlots]);
 
-  const valid = name.trim().length > 0 && phone.trim().length > 0 && time !== "";
+  const canSubmit = time !== "" && !isLoading;
 
   const handleCreate = async () => {
-    if (!valid || isLoading) return;
+    if (!canSubmit) return;
+    const errors: { name?: string; phone?: string; dob?: string } = {};
+    if (name.trim().length === 0) {
+      errors.name = t("appt.nameRequired");
+    }
+    const normalizedPhone = normalizePhone(phone);
+    if (!normalizedPhone) {
+      errors.phone = t("appt.invalidPhone");
+    }
+    let dobIso: string | undefined;
+    if (dob.trim().length > 0) {
+      const parsed = parseDob(dob);
+      if ("error" in parsed) {
+        errors.dob = t(parsed.error === "future" ? "appt.dobFuture" : "appt.invalidDob");
+      } else {
+        dobIso = parsed.iso;
+      }
+    }
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      // L'onglet reste ouvert : erreurs sous les champs + toast.
+      toast(t("errors.createAppointment"), "danger");
+      return;
+    }
     setIsLoading(true);
     try {
       await createAppointment({
-        patientName: name,
-        phone,
+        patientName: name.trim(),
+        phone: normalizedPhone as string,
         type: t("appt.defaultType"),
         date: toKey(date),
         time,
-        dateOfBirth: dob || undefined,
+        dateOfBirth: dobIso,
       });
-      toast(t("appt.created", { name }), "success");
+      toast(t("appt.created", { name: name.trim() }), "success");
       await fetchAppointments();
       onClose();
     } catch (err) {
       console.error(err);
+      toast(err instanceof Error ? err.message : t("errors.createAppointment"), "danger");
     } finally {
       setIsLoading(false);
     }
@@ -161,7 +242,10 @@ function AddAppointmentForm({
               <Input
                 id="appt-name"
                 value={name}
-                onChange={(e) => setName(e.target.value)}
+                onChange={(e) => {
+                  setName(e.target.value);
+                  if (fieldErrors.name) setFieldErrors((p) => ({ ...p, name: undefined }));
+                }}
                 onFocus={() => setNameFocus(true)}
                 onBlur={() => setNameFocus(false)}
                 placeholder={t("appt.namePlaceholder")}
@@ -169,7 +253,9 @@ function AddAppointmentForm({
                 autoComplete="off"
               />
             </div>
-            {name.trim().length > 0 ? (
+            {fieldErrors.name ? (
+              <p className="mt-1 text-[12px] font-medium text-danger">{fieldErrors.name}</p>
+            ) : name.trim().length > 0 ? (
               <p className="mt-1 text-[12px] text-muted">{t("appt.newPatient")}</p>
             ) : null}
           </div>
@@ -187,14 +273,21 @@ function AddAppointmentForm({
               <Input
                 id="appt-phone"
                 value={phone}
-                onChange={(e) => setPhone(e.target.value)}
+                onChange={(e) => {
+                  setPhone(e.target.value);
+                  if (fieldErrors.phone) setFieldErrors((p) => ({ ...p, phone: undefined }));
+                }}
                 onFocus={() => setPhoneFocus(true)}
                 onBlur={() => setPhoneFocus(false)}
-                placeholder={t("appt.phonePlaceholder")}
+                placeholder="0781569010"
+                inputMode="tel"
                 className="ps-9"
                 autoComplete="off"
               />
             </div>
+            {fieldErrors.phone ? (
+              <p className="mt-1 text-[12px] font-medium text-danger">{fieldErrors.phone}</p>
+            ) : null}
           </div>
 
           {/* Date of birth */}
@@ -210,12 +303,19 @@ function AddAppointmentForm({
               <Input
                 id="appt-dob"
                 value={dob}
-                onChange={(e) => setDob(e.target.value)}
+                onChange={(e) => {
+                  setDob(maskDob(e.target.value));
+                  if (fieldErrors.dob) setFieldErrors((p) => ({ ...p, dob: undefined }));
+                }}
                 placeholder={t("appt.dobPlaceholder")}
+                inputMode="numeric"
                 className="ps-9"
                 autoComplete="off"
               />
             </div>
+            {fieldErrors.dob ? (
+              <p className="mt-1 text-[12px] font-medium text-danger">{fieldErrors.dob}</p>
+            ) : null}
           </div>
 
           {/* Slot summary */}
@@ -234,7 +334,7 @@ function AddAppointmentForm({
 
           <Button
             onClick={handleCreate}
-            disabled={!valid || isLoading}
+            disabled={!canSubmit}
             className="mt-auto w-full"
           >
             {isLoading ? (

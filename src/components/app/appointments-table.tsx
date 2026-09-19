@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import * as React from "react";
 import {
@@ -93,6 +93,7 @@ export function AppointmentsTable({
   initialFilter?: Filter;
 }) {
   const { appointments, openDrawer, confirmAppointment, cancelAppointment, t, fetchAppointments, loading: contextLoading } =
+  const { appointments, openDrawer, confirmAppointment, cancelAppointment, t, fetchAppointments, loading: contextLoading, syncAppointmentLocally } =
     useApp();
   const { toast } = useToast();
 
@@ -139,9 +140,19 @@ export function AppointmentsTable({
   }, [query, filter, loadServerList]);
 
   // Push temps réel (doc §2) : refetch sur événement, jamais de polling.
+  // Push temps réel (doc §2) : update direct en state, pas de polling.
   useCabinetRealtime();
   const filterRef = React.useRef(filter);
   filterRef.current = filter;
+  useRealtimeEvent("appointment_updated", (event: any) => {
+    if (event.data) {
+      syncAppointmentLocally(event.data);
+    } else {
+      loadServerList(mapFilterToBackendStatus(filterRef.current));
+    }
+  });
+
+  // Legacy fallback if backend still sends appointments_changed
   useRealtimeEvent("appointments_changed", () => {
     loadServerList(mapFilterToBackendStatus(filterRef.current));
   });

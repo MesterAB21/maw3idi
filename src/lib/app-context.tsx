@@ -87,6 +87,7 @@ interface AppState {
   markCompleted: (id: string) => Promise<void>;
   markNoShow: (id: string) => Promise<void>;
   updateAppointment: (id: string, data: Partial<{ date_rendez_vous: string; duration_minutes: number; internal_notes?: string }>) => Promise<void>;
+  syncAppointmentLocally: (appointment: Appointment) => void;
   refreshDashboardStats: () => Promise<void>;
 
   // Drawer
@@ -531,6 +532,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (cabinet) await fetchDashboardStatsData(cabinet.id);
   }, [cabinet, fetchDashboardStatsData]);
 
+  const syncAppointmentLocally = React.useCallback((appointment: Appointment) => {
+    setAppointments((prev) => {
+      const idx = prev.findIndex((a) => a.id === appointment.id);
+      if (idx >= 0) {
+        const next = [...prev];
+        next[idx] = appointment;
+        return next;
+      }
+      return [appointment, ...prev];
+    });
+  }, []);
+
   const updateCabinet = React.useCallback(async (data: Partial<{ nom_cabinet: string; nom_agent: string; localisation: string; maps_link?: string; description?: string; slot_duration_minutes?: number; need_call_threshold_minutes?: number; plan?: "standard" | "pro"; is_active?: boolean }>) => {
     if (!cabinet) return;
     try {
@@ -684,6 +697,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     markCompleted,
     markNoShow,
     updateAppointment,
+    syncAppointmentLocally,
     refreshDashboardStats,
     selectedId,
     openDrawer,
