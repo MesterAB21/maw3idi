@@ -1,5 +1,6 @@
 /**
- * Voix en direct (mode /test) — accord avec le Voice Gateway (`localhost:8001`).
+ * Voix en direct (mode /test) — accord avec le Voice Gateway
+ * (production: maw3idi-agent.onrender.com).
  *
  * Le même secret partagé que le webhook signe le corps JSON du POST /stream/test :
  *

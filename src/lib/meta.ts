@@ -1,7 +1,8 @@
 /**
  * Meta-compatible test webhook (`/test` mode).
  *
- * The real agent lives outside this app on `localhost:8001`. To mimic exactly
+ * The real agent lives outside this app (production: maw3idi-agent.onrender.com).
+ * To mimic exactly
  * what Meta does, every message POST is signed with the shared app secret:
  *
  *   X-Hub-Signature-256: sha256=<hex hmac_sha256(secret, raw body)>
@@ -17,7 +18,7 @@ export const META_APP_SECRET =
 /** The external agent's live Meta-style webhook for `whatsapp_test` /
  *  `instagram_test` inbound messages. Configure via NEXT_PUBLIC_TEST_AGENT_URL. */
 export const TEST_AGENT_URL =
-  process.env.NEXT_PUBLIC_TEST_AGENT_URL ?? "http://localhost:8001/webhooks/test";
+  process.env.NEXT_PUBLIC_TEST_AGENT_URL ?? "https://maw3idi-agent.onrender.com/webhooks/test";
 
 export interface TestAgentConfig {
   secret: string;
