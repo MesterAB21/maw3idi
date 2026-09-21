@@ -49,6 +49,16 @@
   .text-balance {
     text-wrap: balance;
   }
+
+  /* Calendar week columns: scrollable but with the scrollbar hidden (Webkit +
+     Firefox) while staying functional. */
+  .hide-scrollbar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 /* Motion (§3 guide) — landing nav hide on scroll down / show on scroll up + blur */

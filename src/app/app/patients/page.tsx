@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { CalendarClock, CalendarDays, Search, X } from "lucide-react";
 
 import { useApp } from "@/lib/app-context";
+import { useAppRoot } from "@/lib/use-app-root";
 import { avatarColor, initials } from "@/lib/utils";
 import { derivePatients } from "@/lib/patients";
 import { Input } from "@/components/ui/input";
@@ -14,6 +15,7 @@ import { EmptyState } from "@/components/app/empty-state";
 export default function PatientsPage() {
   const { appointments, t } = useApp();
   const router = useRouter();
+  const root = useAppRoot();
 
   const [loading, setLoading] = React.useState(true);
   const [query, setQuery] = React.useState("");
@@ -36,7 +38,7 @@ export default function PatientsPage() {
   }, [patients, query]);
 
   const open = (name: string) =>
-    router.push(`/app/patients/${encodeURIComponent(name)}`);
+    router.push(`${root}/patients/${encodeURIComponent(name)}`);
 
   if (loading) {
     return (

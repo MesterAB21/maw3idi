@@ -1,7 +1,7 @@
-"use client";
+﻿"use client";
 
 import * as React from "react";
-import { useRouter, useSearchParams, usePathname, notFound } from "next/navigation";
+import { useRouter, useSearchParams, notFound } from "next/navigation";
 import {
   Building2,
   Users,
@@ -13,6 +13,12 @@ import {
   Loader2,
   Settings2,
   TriangleAlert,
+  MessageSquare,
+  Phone,
+  Wifi,
+  Calendar,
+  RefreshCw,
+  AlertTriangle,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -59,6 +65,17 @@ interface CabinetRow {
   plan: string;
   is_active: boolean;
   users_count?: number;
+  channels_count?: number;
+}
+
+interface CabinetChannelRow {
+  id: string;
+  cabinet_id: string;
+  cabinet_name: string;
+  channel_type: string;
+  channel_identifier: string;
+  is_active: boolean;
+  created_at: string;
 }
 
 interface UserRow {
@@ -74,18 +91,17 @@ interface UserRow {
 }
 
 const NO_CABINET = "__none";
-type Tab = "cabinets" | "users";
+type Tab = "cabinets" | "users" | "dashboard";
 
 function SuperAdminPageInner() {
   const { t, authUser, loading: authLoading } = useApp();
   const { toast } = useToast();
   const router = useRouter();
-  const pathname = usePathname();
   const searchParams = useSearchParams();
   const tabParam = searchParams.get("tab");
 
   const [loading, setLoading] = React.useState(true);
-  const [activeTab, setActiveTab] = React.useState<Tab>(tabParam === "users" ? "users" : "cabinets");
+  const [activeTab, setActiveTab] = React.useState<Tab>(tabParam === "users" ? "users" : tabParam === "dashboard" ? "dashboard" : "cabinets");
   const [cabinets, setCabinets] = React.useState<CabinetRow[]>([]);
   const [users, setUsers] = React.useState<UserRow[]>([]);
   const [cabinetsLoading, setCabinetsLoading] = React.useState(false);
@@ -98,8 +114,10 @@ function SuperAdminPageInner() {
   const [userTotal, setUserTotal] = React.useState(0);
   const [cabinetDialogOpen, setCabinetDialogOpen] = React.useState(false);
   const [userDialogOpen, setUserDialogOpen] = React.useState(false);
+  const [channelDialogOpen, setChannelDialogOpen] = React.useState(false);
   const [deleteCabinetTarget, setDeleteCabinetTarget] = React.useState<CabinetRow | null>(null);
   const [deleteUserTarget, setDeleteUserTarget] = React.useState<UserRow | null>(null);
+  const [deleteChannelTarget, setDeleteChannelTarget] = React.useState<CabinetChannelRow | null>(null);
   const [deleteConfirmText, setDeleteConfirmText] = React.useState("");
   const [deleting, setDeleting] = React.useState(false);
   const [cabinetForm, setCabinetForm] = React.useState({
@@ -123,7 +141,16 @@ function SuperAdminPageInner() {
     is_super_admin: false,
     is_active: true,
   });
+  const [channelForm, setChannelForm] = React.useState({
+    cabinet_id: "",
+    channel_type: "whatsapp",
+    channel_identifier: "",
+    is_active: true,
+  });
   const [editingUser, setEditingUser] = React.useState<UserRow | null>(null);
+  const [editingChannel, setEditingChannel] = React.useState<CabinetChannelRow | null>(null);
+  const [channels, setChannels] = React.useState<CabinetChannelRow[]>([]);
+  const [channelsLoading, setChannelsLoading] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
 
   const isSuperAdmin = authUser?.isSuperAdmin ?? false;
@@ -139,6 +166,21 @@ function SuperAdminPageInner() {
       console.error(err);
     } finally {
       setCabinetsLoading(false);
+    }
+  }, []);
+
+  const fetchChannels = React.useCallback(async (page: number, search: string, cabinetId?: string) => {
+    setChannelsLoading(true);
+    try {
+      const res = await api.listSuperAdminCabinetChannels({ page, page_size: 20, search, cabinet_id: cabinetId });
+      setChannels(res.data);
+      return res;
+    } catch (err) {
+      console.error(err);
+      setChannels([]);
+      return { data: [], total: 0 };
+    } finally {
+      setChannelsLoading(false);
     }
   }, []);
 
@@ -160,7 +202,7 @@ function SuperAdminPageInner() {
   }
 
   React.useEffect(() => {
-    if (tabParam === "users" || tabParam === "cabinets") {
+    if (tabParam === "users" || tabParam === "cabinets" || tabParam === "dashboard") {
       setActiveTab(tabParam);
     }
   }, [tabParam]);
@@ -181,11 +223,6 @@ function SuperAdminPageInner() {
     if (authLoading || !isSuperAdmin) return;
     fetchUsers(userPage, userSearch);
   }, [authLoading, isSuperAdmin, userSearch, userPage, fetchUsers]);
-
-  const switchTab = (tab: Tab) => {
-    setActiveTab(tab);
-    router.replace(`${pathname}?tab=${tab}`);
-  };
 
   const resetCabinetForm = () => {
     setCabinetForm({
@@ -345,6 +382,95 @@ function SuperAdminPageInner() {
     }
   };
 
+  const openChannelDialog = (cabinet: CabinetRow) => {
+    setChannelForm({ cabinet_id: cabinet.id, channel_type: "whatsapp", channel_identifier: "", is_active: true });
+    setEditingChannel(null);
+    fetchChannels(1, "", cabinet.id);
+    setChannelDialogOpen(true);
+  };
+
+  const handleSaveChannel = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    const cabinetId = channelForm.cabinet_id;
+    try {
+      if (editingChannel) {
+        await api.updateSuperAdminCabinetChannel(editingChannel.id, channelForm);
+        toast("Canal mis à jour", "success");
+      } else {
+        await api.createSuperAdminCabinetChannel(channelForm);
+        setCabinets((prev) =>
+          prev.map((c) =>
+            c.id === cabinetId ? { ...c, channels_count: (c.channels_count ?? 0) + 1 } : c
+          )
+        );
+        toast("Canal créé", "success");
+      }
+      setChannelForm((prev) => ({ ...prev, channel_identifier: "" }));
+      setEditingChannel(null);
+      if (cabinetId) fetchChannels(1, "", cabinetId);
+    } catch (err) {
+      console.error(err);
+      toast("Erreur lors de la sauvegarde", "danger");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const resetChannelForm = () => {
+    setChannelForm({ cabinet_id: "", channel_type: "whatsapp", channel_identifier: "", is_active: true });
+    setEditingChannel(null);
+  };
+
+  const openEditChannel = (channel: CabinetChannelRow) => {
+    setEditingChannel(channel);
+    setChannelForm({
+      cabinet_id: channel.cabinet_id,
+      channel_type: channel.channel_type,
+      channel_identifier: channel.channel_identifier,
+      is_active: channel.is_active,
+    });
+    setChannelDialogOpen(true);
+  };
+
+  const openDeleteChannel = (channel: CabinetChannelRow) => {
+    setDeleteChannelTarget(channel);
+    setDeleteConfirmText("");
+  };
+
+  const confirmDeleteChannel = async () => {
+    if (!deleteChannelTarget) return;
+    if (deleteConfirmText.trim() !== deleteChannelTarget.channel_identifier) return;
+    setDeleting(true);
+    try {
+      const cabinetId = deleteChannelTarget.cabinet_id;
+      await api.deleteSuperAdminCabinetChannel(deleteChannelTarget.id);
+      toast("Canal supprimé", "success");
+      setDeleteChannelTarget(null);
+      setCabinets((prev) =>
+        prev.map((c) =>
+          c.id === cabinetId ? { ...c, channels_count: Math.max(0, (c.channels_count ?? 0) - 1) } : c
+        )
+      );
+      if (cabinetId) fetchChannels(1, "", cabinetId);
+    } catch (err) {
+      console.error(err);
+      toast("Erreur lors de la suppression", "danger");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const toggleChannelActive = async (channel: CabinetChannelRow, value: boolean) => {
+    try {
+      await api.updateSuperAdminCabinetChannel(channel.id, { is_active: value });
+      toast("Canal mis à jour", "success");
+    } catch (err) {
+      console.error(err);
+      toast("Erreur lors de la mise à jour", "danger");
+    }
+  };
+
   const toggleCabinetActive = async (cabinet: CabinetRow, value: boolean) => {
     try {
       await api.updateSuperAdminCabinet(cabinet.id, { is_active: value });
@@ -396,31 +522,6 @@ function SuperAdminPageInner() {
         </span>
       </div>
 
-      <div className="flex border-b border-hairline">
-        <button
-          onClick={() => switchTab("cabinets")}
-          className={cn(
-            "px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px",
-            activeTab === "cabinets"
-              ? "border-brand-primary text-ink"
-              : "border-transparent text-muted hover:text-ink"
-          )}
-        >
-          {t("superadmin.tab.cabinets")}
-        </button>
-        <button
-          onClick={() => switchTab("users")}
-          className={cn(
-            "px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px",
-            activeTab === "users"
-              ? "border-brand-primary text-ink"
-              : "border-transparent text-muted hover:text-ink"
-          )}
-        >
-          {t("superadmin.tab.users")}
-        </button>
-      </div>
-
       {activeTab === "cabinets" && (
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -459,13 +560,23 @@ function SuperAdminPageInner() {
                     <th className="px-4 py-3 text-left text-caption uppercase font-semibold text-muted">{t("superadmin.cabinet.agent")}</th>
                     <th className="px-4 py-3 text-left text-caption uppercase font-semibold text-muted">{t("superadmin.cabinet.plan")}</th>
                     <th className="px-4 py-3 text-left text-caption uppercase font-semibold text-muted">{t("superadmin.cabinet.users")}</th>
+                    <th className="px-4 py-3 text-left text-caption uppercase font-semibold text-muted">{t("superadmin.cabinet.channels")}</th>
                     <th className="px-4 py-3 text-left text-caption uppercase font-semibold text-muted">{t("superadmin.cabinet.status")}</th>
                     <th className="px-4 py-3 text-right text-caption uppercase font-semibold text-muted">{t("common.actions")}</th>
                   </tr>
                 </thead>
-                <tbody>
-                  {cabinets.map((cabinet) => (
-                    <tr key={cabinet.id} className="border-b border-hairline hover:bg-surface-soft/50">
+<tbody>
+                  {cabinets.map((cabinet) => {
+                    // Check if cabinet has admin user
+                    const hasAdmin = users.some(u => u.cabinet_id === cabinet.id && u.role === "admin");
+                    // Check if cabinet has channels (count only, fetched lazily on click)
+                    const channelsCount = cabinet.channels_count ?? 0;
+                    const hasChannels = channelsCount > 0;
+                    // Show red warning if active but no admin or no channels
+                    const hasWarning = cabinet.is_active && (!hasAdmin || !hasChannels);
+
+                    return (
+                      <tr key={cabinet.id} className="border-b border-hairline hover:bg-surface-soft/50">
                       <td className="px-4 py-3">
                         <p className="font-medium text-ink">{cabinet.nom_cabinet}</p>
                         <p className="text-body-sm text-muted">{cabinet.localisation}</p>
@@ -477,6 +588,12 @@ function SuperAdminPageInner() {
                         </span>
                       </td>
                       <td className="px-4 py-3">{cabinet.users_count ?? "—"}</td>
+                      <td className="px-4 py-3">
+                        <span className="inline-flex items-center gap-1.5">
+                          <MessageSquare className="size-3.5 text-muted" />
+                          <span className="font-medium text-ink">{channelsCount}</span>
+                        </span>
+                      </td>
                       <td className="px-4 py-3">
                         <span className="inline-flex items-center gap-2">
                           <Switch
@@ -490,10 +607,24 @@ function SuperAdminPageInner() {
                           )}>
                             {cabinet.is_active ? t("superadmin.cabinet.active") : t("superadmin.cabinet.inactive")}
                           </span>
+                          {hasWarning && (
+                            <span className="flex items-center gap-1 px-2 py-1 text-[10px] font-medium bg-red-100 text-red-700 rounded-full" title={!hasAdmin ? "Aucun admin" : "Aucun canal"}>
+                              <AlertTriangle className="size-3" />
+                              {!hasAdmin && !hasChannels ? "Admin + Canaux" : !hasAdmin ? "Pas d'admin" : "Pas de canaux"}
+                            </span>
+                          )}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-2">
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => { openChannelDialog(cabinet); }}
+                          >
+                            <MessageSquare className="size-4 mr-1" />
+                            Canaux
+                          </Button>
                           <Button
                             variant="secondary"
                             size="sm"
@@ -508,7 +639,8 @@ function SuperAdminPageInner() {
                         </div>
                       </td>
                     </tr>
-                  ))}
+                  );
+                })}
                 </tbody>
               </table>
             </div>
@@ -521,7 +653,7 @@ function SuperAdminPageInner() {
               </p>
               <div className="flex gap-2">
                 <Button variant="secondary" size="sm" onClick={() => setCabinetPage((p) => Math.max(1, p - 1))} disabled={cabinetPage === 1}>
-                  Précédent
+                  PrÃ©cÃ©dent
                 </Button>
                 <Button variant="secondary" size="sm" onClick={() => setCabinetPage((p) => Math.min(cabinetPageCount, p + 1))} disabled={cabinetPage === cabinetPageCount}>
                   Suivant
@@ -530,6 +662,10 @@ function SuperAdminPageInner() {
             </div>
           )}
         </div>
+      )}
+
+      {activeTab === "dashboard" && (
+        <SuperAdminDashboard cabinets={cabinets} />
       )}
 
       {activeTab === "users" && (
@@ -636,7 +772,7 @@ function SuperAdminPageInner() {
               </p>
               <div className="flex gap-2">
                 <Button variant="secondary" size="sm" onClick={() => setUserPage((p) => Math.max(1, p - 1))} disabled={userPage === 1}>
-                  Précédent
+                  PrÃ©cÃ©dent
                 </Button>
                 <Button variant="secondary" size="sm" onClick={() => setUserPage((p) => Math.min(userPageCount, p + 1))} disabled={userPage === userPageCount}>
                   Suivant
@@ -781,6 +917,116 @@ function SuperAdminPageInner() {
         </DialogContent>
       </Dialog>
 
+      {/* Create / edit cabinet channel dialog */}
+      <Dialog open={channelDialogOpen} onOpenChange={setChannelDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{editingChannel ? "Modifier le canal" : "Ajouter un canal"}</DialogTitle>
+            <DialogDescription>{editingChannel ? "Modifiez les informations du canal" : "Configurez un nouveau canal pour le cabinet"}</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSaveChannel} className="flex flex-col gap-4 py-2">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <Label htmlFor="channel-cabinet">Cabinet</Label>
+                <Select value={channelForm.cabinet_id} onValueChange={v => setChannelForm({...channelForm, cabinet_id: v})} disabled={!!editingChannel}>
+                  <SelectTrigger><SelectValue placeholder="Sélectionner un cabinet" /></SelectTrigger>
+                  <SelectContent>
+                    {cabinets.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>{c.nom_cabinet}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="channel-type">Type de canal</Label>
+                <Select value={channelForm.channel_type} onValueChange={v => setChannelForm({...channelForm, channel_type: v})}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="whatsapp">WhatsApp</SelectItem>
+                    <SelectItem value="instagram">Instagram</SelectItem>
+                    <SelectItem value="phone">Téléphone</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="sm:col-span-2">
+                <Label htmlFor="channel-identifier">Identifiant du canal</Label>
+                <Input id="channel-identifier" placeholder="Numéro WhatsApp, ID Instagram, ou ligne GoIP" value={channelForm.channel_identifier} onChange={e => setChannelForm({...channelForm, channel_identifier: e.target.value})} required />
+              </div>
+              <div>
+                <Label htmlFor="channel-active">Actif</Label>
+                <Switch id="channel-active" checked={channelForm.is_active} onCheckedChange={v => setChannelForm({...channelForm, is_active: v})} />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button type="button" variant="secondary" onClick={() => { setChannelDialogOpen(false); resetChannelForm(); }}>
+                Annuler
+              </Button>
+              <Button type="submit" disabled={saving}>
+                {saving ? <Loader2 className="size-4 animate-spin mr-2" /> : null}
+                Enregistrer
+              </Button>
+            </div>
+          </form>
+          
+          {/* Existing channels list */}
+          {channelsLoading && channels.length === 0 ? (
+            <div className="mt-6 flex items-center justify-center gap-2 border-t border-hairline pt-4 text-sm text-muted">
+              <Loader2 className="size-4 animate-spin" />
+              Chargement des canaux...
+            </div>
+          ) : channels.length > 0 ? (
+            <div className="mt-6 border-t border-gray-200 pt-4">
+              <h3 className="text-sm font-medium text-gray-700 mb-3">Canaux existants pour ce cabinet</h3>
+              <div className="space-y-2 max-h-48 overflow-y-auto">
+                {channels.map((channel) => (
+                  <div key={channel.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
+                    <div className="flex items-center gap-3">
+                      <span className={cn(
+                        "px-2 py-1 text-xs font-medium rounded-full",
+                        channel.channel_type === "whatsapp" && "bg-green-100 text-green-700",
+                        channel.channel_type === "instagram" && "bg-purple-100 text-purple-700",
+                        channel.channel_type === "phone" && "bg-blue-100 text-blue-700"
+                      )}>
+                        {channel.channel_type}
+                      </span>
+                      <span className="font-mono text-sm font-medium text-gray-900">{channel.channel_identifier}</span>
+                      <span className={cn(
+                        "px-2 py-0.5 text-xs font-medium rounded-full",
+                        channel.is_active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"
+                      )}>
+                        {channel.is_active ? "Actif" : "Inactif"}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-blue-600 hover:text-blue-800"
+                        onClick={() => openEditChannel(channel)}
+                        disabled={channelsLoading}
+                        aria-label="Modifier"
+                      >
+                        <Edit2 className="size-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-red-600 hover:text-red-800"
+                        onClick={() => openDeleteChannel(channel)}
+                        disabled={channelsLoading}
+                        aria-label="Supprimer"
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+
       {/* Delete cabinet (type-to-confirm) */}
       <Dialog open={Boolean(deleteCabinetTarget)} onOpenChange={(open) => { if (!open) setDeleteCabinetTarget(null); }}>
         <DialogContent className="max-w-md">
@@ -860,10 +1106,286 @@ function SuperAdminPageInner() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete channel (type-to-confirm) */}
+      <Dialog open={Boolean(deleteChannelTarget)} onOpenChange={(open) => { if (!open) setDeleteChannelTarget(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-danger">
+              <TriangleAlert className="size-5" />
+              Supprimer le canal
+            </DialogTitle>
+            <DialogDescription>
+              Êtes-vous sûr de vouloir supprimer ce canal ?
+              {deleteChannelTarget && (
+                <span className="mt-2 block font-medium text-ink">
+                  Tapez "{deleteChannelTarget.channel_identifier}" pour confirmer
+                </span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-4 py-2">
+            <Input
+              value={deleteConfirmText}
+              onChange={(e) => setDeleteConfirmText(e.target.value)}
+              placeholder="Tapez l'identifiant du canal pour confirmer"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="secondary" onClick={() => setDeleteChannelTarget(null)}>
+              Annuler
+</Button>
+            <Button
+              variant="danger"
+              onClick={confirmDeleteChannel}
+              disabled={deleting || !deleteChannelTarget || deleteConfirmText.trim() !== deleteChannelTarget.channel_identifier}
+            >
+              {deleting ? <Loader2 className="size-4 animate-spin mr-2" /> : null}
+              Supprimer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
+// Super Admin Dashboard Component
+function DashboardStatCard({ label, value, subtitle, icon: Icon, color }: { label: string; value: number | string; subtitle: string; icon: React.ComponentType<{ className?: string }>; color: string }) {
+  const colorMap: Record<string, string> = {
+    blue: "bg-blue-500",
+    green: "bg-green-500",
+    purple: "bg-purple-500",
+    orange: "bg-orange-500",
+    indigo: "bg-indigo-500",
+    red: "bg-red-500",
+  };
+  return (
+    <div className="rounded-xl bg-canvas px-5 py-4 shadow-card border border-hairline">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-xs font-medium text-muted">{label}</p>
+          <p className="text-2xl font-bold text-ink mt-1">{value}</p>
+          <p className="text-xs text-muted mt-0.5">{subtitle}</p>
+        </div>
+        <div className={`p-3 rounded-xl ${colorMap[color] || "bg-blue-500"}`}>
+          <Icon className="size-5 text-white" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+interface ErrorRow {
+  id: string;
+  cabinet_id?: string | null;
+  cabinet_name?: string | null;
+  source: string;
+  title: string;
+  details?: string | null;
+  proceeded: boolean;
+  created_at: string;
+}
+
+function ErrorTable({
+  title,
+  source,
+  selectedCabinet,
+  refreshSignal,
+}: {
+  title: string;
+  source: "agent" | "backend";
+  selectedCabinet: string;
+  refreshSignal: number;
+}) {
+  const { toast } = useToast();
+  const [errors, setErrors] = React.useState<ErrorRow[]>([]);
+  const [total, setTotal] = React.useState(0);
+  const [showProceeded, setShowProceeded] = React.useState(false);
+  const [loading, setLoading] = React.useState(false);
+
+  const fetchErrors = React.useCallback(async () => {
+    setLoading(true);
+    try {
+      const params: Record<string, unknown> = {
+        source,
+        page: 1,
+        page_size: 20,
+      };
+      if (!showProceeded) (params as Record<string, boolean>).proceeded = false;
+      if (selectedCabinet !== "all") (params as Record<string, string>).cabinet_id = selectedCabinet;
+      const res = await api.listSuperAdminErrors(params as { source?: string; proceeded?: boolean; cabinet_id?: string; page?: number; page_size?: number });
+      setErrors(res.data);
+      setTotal(res.total);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }, [source, selectedCabinet, showProceeded]);
+
+  // Refresh auto toutes les 30s + a chaque changement de filtre
+  React.useEffect(() => {
+    fetchErrors();
+    const timer = setInterval(fetchErrors, 30000);
+    return () => clearInterval(timer);
+  }, [fetchErrors, refreshSignal]);
+
+  const handleProceed = async (id: string) => {
+    try {
+      await api.proceedSuperAdminError(id);
+      toast("Erreur marquee traitee", "success");
+      fetchErrors();
+    } catch (err) {
+      console.error(err);
+      toast("Erreur lors du traitement", "danger");
+    }
+  };
+
+  const fmtTime = (iso: string) => {
+    try {
+      const d = new Date(iso);
+      return d.toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+    } catch {
+      return iso;
+    }
+  };
+
+  return (
+    <div className="rounded-xl border border-hairline bg-canvas">
+      <div className="px-6 py-4 border-b border-hairline flex items-center justify-between">
+        <h2 className="text-title-md font-semibold text-ink">{title}</h2>
+        <div className="flex items-center gap-3">
+          <label className="flex items-center gap-2 text-xs text-muted">
+            <Switch checked={showProceeded} onCheckedChange={setShowProceeded} />
+            Afficher traitees ({total})
+          </label>
+        </div>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead>
+            <tr className="border-b border-hairline bg-surface-soft/40">
+              <th className="px-4 py-3 text-left text-caption uppercase font-semibold text-muted">Heure</th>
+              <th className="px-4 py-3 text-left text-caption uppercase font-semibold text-muted">Cabinet</th>
+              <th className="px-4 py-3 text-left text-caption uppercase font-semibold text-muted">Erreur</th>
+              <th className="px-4 py-3 text-left text-caption uppercase font-semibold text-muted">Details</th>
+              <th className="px-4 py-3 text-left text-caption uppercase font-semibold text-muted">Traite</th>
+              <th className="px-4 py-3 text-right text-caption uppercase font-semibold text-muted">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr><td colSpan={6} className="px-4 py-6 text-center text-sm text-muted">Chargement...</td></tr>
+            ) : errors.length === 0 ? (
+              <tr><td colSpan={6} className="px-4 py-6 text-center text-sm text-muted">Aucune erreur</td></tr>
+            ) : (
+              errors.map((e) => (
+                <tr key={e.id} className="border-b border-hairline hover:bg-surface-soft/50">
+                  <td className="px-4 py-3 whitespace-nowrap text-[13px]">{fmtTime(e.created_at)}</td>
+                  <td className="px-4 py-3 text-[13px]">{e.cabinet_name || "â€”"}</td>
+                  <td className="px-4 py-3 text-[13px] font-medium">{e.title}</td>
+                  <td className="px-4 py-3 text-[13px] text-muted max-w-[280px] truncate" title={e.details || ""}>{e.details || "â€”"}</td>
+                  <td className="px-4 py-3">
+                    <span className={cn(
+                      "inline-flex items-center rounded-full px-2 py-1 text-[11px] font-medium",
+                      e.proceeded ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+                    )}>
+                      {e.proceeded ? "Traite" : "Non traite"}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    {!e.proceeded && (
+                      <Button variant="secondary" size="sm" onClick={() => handleProceed(e.id)}>
+                        Marquer traite
+                      </Button>
+                    )}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function SuperAdminDashboard({ cabinets }: { cabinets: CabinetRow[] }) {
+  const [selectedCabinet, setSelectedCabinet] = React.useState<string>("all");
+  const [stats, setStats] = React.useState<Record<string, number> | null>(null);
+  const [statsLoading, setStatsLoading] = React.useState(false);
+  const [refreshSignal, setRefreshSignal] = React.useState(0);
+
+  const fetchStats = React.useCallback(async () => {
+    setStatsLoading(true);
+    try {
+      const res = await api.getSuperAdminDashboardStats(selectedCabinet === "all" ? undefined : selectedCabinet);
+      setStats(res);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setStatsLoading(false);
+    }
+  }, [selectedCabinet]);
+
+  React.useEffect(() => {
+    fetchStats();
+  }, [fetchStats, refreshSignal]);
+
+  const statCards = [
+    { label: "Cabinets", value: stats?.total_cabinets ?? "â€”", subtitle: `${stats?.active_cabinets ?? "â€”"} actifs`, icon: Building2, color: "blue" },
+    { label: "Utilisateurs", value: stats?.total_users ?? "â€”", subtitle: `${stats?.admin_users ?? "â€”"} admins / ${stats?.secretary_users ?? "â€”"} secretaires`, icon: Users, color: "green" },
+    { label: "Patients", value: stats?.total_patients ?? "â€”", subtitle: "Total uniques", icon: Users, color: "purple" },
+    { label: "RDV Aujourd'hui", value: stats?.today_appointments ?? "â€”", subtitle: `${stats?.total_appointments ?? "â€”"} total`, icon: Calendar, color: "orange" },
+    { label: "RDV Semaine", value: stats?.week_appointments ?? "â€”", subtitle: "7 jours", icon: Calendar, color: "blue" },
+    { label: "RDV Mois", value: stats?.month_appointments ?? "â€”", subtitle: "30 jours", icon: Calendar, color: "indigo" },
+    { label: "Erreurs Agent", value: stats?.agent ?? "â€”", subtitle: `${stats?.agent_unproceeded ?? "â€”"} non traitees`, icon: AlertTriangle, color: "red" },
+    { label: "Erreurs Backend", value: stats?.backend ?? "â€”", subtitle: `${stats?.backend_unproceeded ?? "â€”"} non traitees`, icon: AlertTriangle, color: "red" },
+  ];
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="font-display text-display-md font-bold text-ink">Tableau de bord</h1>
+          <p className="mt-1 text-body-sm text-muted">Statistiques globales et erreurs</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <Select value={selectedCabinet} onValueChange={setSelectedCabinet}>
+            <SelectTrigger className="w-48"><SelectValue placeholder="Tous les cabinets" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tous les cabinets</SelectItem>
+              {cabinets.map((c) => (
+                <SelectItem key={c.id} value={c.id}>{c.nom_cabinet}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button variant="secondary" size="sm" onClick={() => { fetchStats(); setRefreshSignal((k) => k + 1); }}>
+            <RefreshCw className="size-4 mr-2" />
+            Actualiser
+          </Button>
+        </div>
+      </div>
+
+      {statsLoading && !stats ? (
+        <div className="flex flex-col gap-2">
+          <Skeleton className="h-24 w-full rounded-xl" />
+        </div>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {statCards.map((card, index) => (
+            <DashboardStatCard key={index} {...card} />
+          ))}
+        </div>
+      )}
+
+      <ErrorTable title="Erreurs Agent" source="agent" selectedCabinet={selectedCabinet} refreshSignal={refreshSignal} />
+
+      <ErrorTable title="Erreurs Backend" source="backend" selectedCabinet={selectedCabinet} refreshSignal={refreshSignal} />
+    </div>
+  );
+}
 export default function SuperAdminPage() {
   return (
     <React.Suspense
@@ -878,3 +1400,5 @@ export default function SuperAdminPage() {
     </React.Suspense>
   );
 }
+
+

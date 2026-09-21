@@ -7,7 +7,7 @@ export type AppointmentStatus =
   | "termine"
   | "absent";
 
-export type ContactChannel = "whatsapp" | "instagram" | "phone" | "manual";
+export type ContactChannel = "whatsapp" | "instagram" | "phone" | "manual" | "whatsapp_test" | "instagram_test" | "call_test" | "appel";
 
 export type UserRole = "admin" | "secretaire";
 

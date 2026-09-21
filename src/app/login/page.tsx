@@ -16,6 +16,16 @@ const PRIMARY_BUTTON_CLASS =
   "shadow-md rounded-[10px] bg-[#005FB5] py-3 h-[44px] text-white text-[14px] font-semibold hover:opacity-90 hover:cursor-pointer active:opacity-75 transition duration-200";
 
 export default function LoginPage() {
+  const { authUser } = useApp();
+  const router = useRouter();
+
+  // If already authenticated, redirect to /commencer
+  React.useEffect(() => {
+    if (authUser) {
+      router.replace("/commencer");
+    }
+  }, [authUser, router]);
+
   return (
     <React.Suspense fallback={null}>
       <LoginPageInner />
@@ -50,7 +60,7 @@ function LoginPageInner() {
     try {
       const isSuperAdmin = await login(email, password);
       toast("Connexion réussie", "success");
-      router.push(isSuperAdmin ? "/app/superadmin" : "/app/dashboard");
+      router.push("/commencer");
       router.refresh();
     } catch {
       setError("Identifiants invalides. Veuillez réessayer.");

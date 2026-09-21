@@ -612,6 +612,125 @@ export const api = {
     });
     return handleResponse(res);
   },
+
+  // Cabinet Channels
+  async listSuperAdminCabinetChannels(params?: {
+    page?: number;
+    page_size?: number;
+    search?: string;
+    cabinet_id?: string;
+  }): Promise<PaginatedResponse<any>> {
+    const search = new URLSearchParams();
+    if (params?.page) search.set("page", String(params.page));
+    if (params?.page_size) search.set("page_size", String(params.page_size));
+    if (params?.search) search.set("search", params.search);
+    if (params?.cabinet_id) search.set("cabinet_id", params.cabinet_id);
+    const res = await fetch(`${API_BASE}/superadmin/cabinet-channels?${search}`, {
+      headers: buildHeaders(),
+      credentials: "include",
+    });
+    return handleResponse(res);
+  },
+
+  async createSuperAdminCabinetChannel(data: Record<string, unknown>): Promise<any> {
+    const res = await fetch(`${API_BASE}/superadmin/cabinet-channels`, {
+      method: "POST",
+      headers: buildHeaders(),
+      credentials: "include",
+      body: JSON.stringify(data),
+    });
+    return handleResponse(res);
+  },
+
+  async updateSuperAdminCabinetChannel(id: string, data: Record<string, unknown>): Promise<any> {
+    const res = await fetch(`${API_BASE}/superadmin/cabinet-channels/${id}`, {
+      method: "PATCH",
+      headers: buildHeaders(),
+      credentials: "include",
+      body: JSON.stringify(data),
+    });
+    return handleResponse(res);
+  },
+
+  async deleteSuperAdminCabinetChannel(id: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/superadmin/cabinet-channels/${id}`, {
+      method: "DELETE",
+      headers: buildHeaders(),
+      credentials: "include",
+    });
+    return handleResponse(res);
+  },
+
+  // Super admin dashboard + errors
+  async getSuperAdminDashboardStats(cabinetId?: string): Promise<Record<string, number>> {
+    const search = new URLSearchParams();
+    if (cabinetId && cabinetId !== "all") search.set("cabinet_id", cabinetId);
+    const res = await fetch(`${API_BASE}/superadmin/dashboard-stats?${search}`, {
+      headers: buildHeaders(),
+      credentials: "include",
+    });
+    return handleResponse(res);
+  },
+
+  async listSuperAdminErrors(params?: {
+    source?: string;
+    proceeded?: boolean;
+    cabinet_id?: string;
+    page?: number;
+    page_size?: number;
+  }): Promise<PaginatedResponse<any>> {
+    const search = new URLSearchParams();
+    if (params?.source) search.set("source", params.source);
+    if (params?.proceeded !== undefined) search.set("proceeded", String(params.proceeded));
+    if (params?.cabinet_id) search.set("cabinet_id", params.cabinet_id);
+    if (params?.page) search.set("page", String(params.page));
+    if (params?.page_size) search.set("page_size", String(params.page_size));
+    const res = await fetch(`${API_BASE}/superadmin/errors?${search}`, {
+      headers: buildHeaders(),
+      credentials: "include",
+    });
+    return handleResponse(res);
+  },
+
+  async proceedSuperAdminError(id: string): Promise<any> {
+    const res = await fetch(`${API_BASE}/superadmin/errors/${id}/proceed`, {
+      method: "PATCH",
+      headers: buildHeaders(),
+      credentials: "include",
+    });
+    return handleResponse(res);
+  },
+
+  // Test mode (/test) — per-browser test cabinet
+  async testStatus(): Promise<{
+    initialized: boolean;
+    cabinet_id?: string;
+    cabinet_name?: string;
+  }> {
+    const res = await fetch(`${API_BASE}/test/status`, {
+      headers: buildHeaders(),
+      credentials: "include",
+    });
+    return handleResponse(res);
+  },
+
+  async testInit(restoreId?: string): Promise<{
+    initialized: boolean;
+    cabinet_id: string;
+    cabinet_name: string;
+    agent_name: string;
+    channels: Array<{ channel_type: string; channel_identifier: string }>;
+    patients: Array<{ contact_id: string; name: string; phone: string; channel: string }>;
+    google_connected: boolean;
+  }> {
+    const query = restoreId ? `?restore=${encodeURIComponent(restoreId)}` : "";
+    const res = await fetch(`${API_BASE}/test/init${query}`, {
+      method: "POST",
+      headers: buildHeaders(),
+      credentials: "include",
+    });
+    return handleResponse(res);
+  },
 };
 
 export type { };

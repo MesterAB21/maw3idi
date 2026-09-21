@@ -73,6 +73,8 @@ const fr = {
   "common.remove": "Retirer",
   "common.confirm": "Confirmer",
   "common.close": "Fermer",
+  "common.yes": "Oui",
+  "common.no": "Non",
 
   // Relative time
   "time.minAgo": "Il y a {n} min",
@@ -95,6 +97,13 @@ const fr = {
   "dashboard.fullCalendar": "Voir le calendrier complet →",
   "dashboard.noneToday": "Aucun rendez-vous programmé aujourd'hui.",
   "dashboard.viewAppointment": "Voir le rendez-vous",
+  "dashboard.confirmQuestion":
+    "Êtes-vous sûr de confirmer le rendez-vous le {date} du patient {patient} ?",
+  "dashboard.cancelQuestion":
+    "Êtes-vous sûr de refuser le rendez-vous le {date} du patient {patient} ?",
+  "dashboard.confirmRdv": "Confirmer",
+  "dashboard.refuseRdv": "Refuser",
+  "dashboard.needCallAll": "Tous les rendez-vous « Need Call »",
 
   // Appointments table
   "table.searchPatient": "Rechercher un patient…",
@@ -121,6 +130,8 @@ const fr = {
   // Filters
   "filter.ALL": "Tous",
   "filter.TODAY": "Aujourd'hui",
+  "filter.TOMORROW": "Demain",
+  "filter.YESTERDAY": "Hier",
   "filter.NEED_CALL": "Need Call",
   "filter.CONFIRMED": "Confirmés",
   "filter.PENDING": "En attente",
@@ -132,6 +143,9 @@ const fr = {
   "filter.annule": "Annulés",
   "filter.termine": "Terminés",
   "filter.absent": "Absents",
+
+  "table.filterByDate": "JJ/MM/AAAA",
+  "table.clearDateFilter": "Effacer le filtre par date",
 
   // Error messages
   "errors.fetchAppointments": "Erreur lors du chargement des rendez-vous",
@@ -169,12 +183,17 @@ const fr = {
   "appt.searchHint": "Patients existants",
   "appt.existingPatient": "Patient existant",
   "appt.newPatient": "Nouveau patient",
+  "appt.changePatient": "changer",
   "appt.selectedSlot": "Créneau : {date} à {time}",
   "appt.noSlot": "Sélectionnez une date et une heure",
   "appt.defaultType": "Consultation",
   "appt.create": "Créer le rendez-vous",
   "appt.lastInteractionAt": "dernière interaction {ago}",
   "appt.noCommunication": "Aucun échange enregistré pour l'instant.",
+  "appt.nameRequired": "Le nom du patient est requis.",
+  "appt.invalidPhone": "Numéro invalide : 10 chiffres commençant par 05, 06 ou 07 (ex : 0781569010).",
+  "appt.invalidDob": "Date de naissance invalide (JJ/MM/AAAA).",
+  "appt.dobFuture": "La date de naissance doit être dans le passé.",
   "appt.creating": "Création...",
   "appt.created": "Rendez-vous créé pour {name}",
   "appt.createdLabel": "créé à l'instant",
@@ -253,6 +272,18 @@ const fr = {
   "cal.availableSlots": "Créneaux disponibles",
   "cal.noSlots": "Aucun créneau disponible pour cette date",
   "cal.googleBusy": "Occupé (Google)",
+  "cal.rdvCount": "{n} RDV",
+  "cal.noAppointmentsDay": "Aucun rendez-vous",
+  "cal.add": "+ Ajouter",
+  "cal.morning": "Matin",
+  "cal.afternoon": "Après-midi",
+  "cal.evening": "Soir",
+  "cal.consultation": "Consultation",
+  "cal.cardMenu": "Actions du rendez-vous",
+  "cal.cardViewDetails": "Voir détails",
+  "cal.cardReschedule": "Reprogrammer",
+  "cal.cardCancel": "Annuler",
+  "cal.cardAria": "{time} · {name} · {status}",
 
   // Calendar widget
   "widget.availableSlots": "Créneaux disponibles",
@@ -419,6 +450,7 @@ const fr = {
   "superadmin.cabinet.deleteError": "Erreur lors de la suppression",
   "superadmin.cabinet.empty": "Aucun cabinet trouvé",
   "superadmin.cabinet.users": "Utilisateurs",
+  "superadmin.cabinet.channels": "Canaux",
   "superadmin.cabinet.status": "Statut",
   "superadmin.cabinet.inactive": "Inactif",
   "superadmin.cabinet.manage": "Gérer",
@@ -481,6 +513,8 @@ const fr = {
   "history.count":
     "{n} rendez-vous terminés, annulés ou sans présence dans l'historique.",
   "history.empty": "Aucun rendez-vous dans l'historique",
+  "history.description":
+    "Historique : rendez-vous passés (avant la dernière 10h), mêmes filtres que la page rendez-vous.",
 } as const;
 
 export type TKey = keyof typeof fr;
@@ -552,6 +586,8 @@ const ar: Record<TKey, string> = {
   "common.remove": "إزالة",
   "common.confirm": "تأكيد",
   "common.close": "إغلاق",
+  "common.yes": "نعم",
+  "common.no": "لا",
 
   // Error messages
   "errors.fetchAppointments": "خطأ أثناء تحميل المواعيد",
@@ -590,6 +626,13 @@ const ar: Record<TKey, string> = {
   "dashboard.fullCalendar": "عرض التقويم الكامل ←",
   "dashboard.noneToday": "لا مواعيد مبرمجة اليوم.",
   "dashboard.viewAppointment": "عرض الموعد",
+  "dashboard.confirmQuestion":
+    "هل أنت متأكد من تأكيد الموعد في {date} للمريض {patient}؟",
+  "dashboard.cancelQuestion":
+    "هل أنت متأكد من رفض الموعد في {date} للمريض {patient}؟",
+  "dashboard.confirmRdv": "تأكيد",
+  "dashboard.refuseRdv": "رفض",
+  "dashboard.needCallAll": "كل مواعيد «بحاجة إلى اتصال»",
 
   "table.searchPatient": "ابحث عن مريض…",
   "table.found": "{n} موعد",
@@ -614,6 +657,8 @@ const ar: Record<TKey, string> = {
 
   "filter.ALL": "الكل",
   "filter.TODAY": "اليوم",
+  "filter.TOMORROW": "غدًا",
+  "filter.YESTERDAY": "أمس",
   "filter.NEED_CALL": "بحاجة إلى اتصال",
   "filter.CONFIRMED": "مؤكدة",
   "filter.PENDING": "قيد الانتظار",
@@ -625,6 +670,9 @@ const ar: Record<TKey, string> = {
   "filter.annule": "ملغاة",
   "filter.termine": "منتهية",
   "filter.absent": "غائبة",
+
+  "table.filterByDate": "يوم/شهر/سنة",
+  "table.clearDateFilter": "مسح تصفية التاريخ",
 
   "appointments.readOnly":
     "وصول للقراءة فقط — المديرون وحدهم يمكنهم تأكيد الموعد أو إلغاءه.",
@@ -641,12 +689,17 @@ const ar: Record<TKey, string> = {
   "appt.searchHint": "المرضى الموجودون",
   "appt.existingPatient": "مريض موجود",
   "appt.newPatient": "مريض جديد",
+  "appt.changePatient": "تغيير",
   "appt.selectedSlot": "الموعد: {date} على {time}",
   "appt.noSlot": "اختر التاريخ والوقت",
   "appt.defaultType": "استشارة",
   "appt.create": "إنشاء الموعد",
   "appt.lastInteractionAt": "آخر تواصل {ago}",
   "appt.noCommunication": "لا يوجد أي تواصل مسجل حتى الآن.",
+  "appt.nameRequired": "اسم المريض مطلوب.",
+  "appt.invalidPhone": "رقم غير صالح: 10 أرقام تبدأ بـ 05 أو 06 أو 07 (مثال: 0781569010).",
+  "appt.invalidDob": "تاريخ ميلاد غير صالح (يوم/شهر/سنة).",
+  "appt.dobFuture": "يجب أن يكون تاريخ الميلاد في الماضي.",
   "appt.creating": "جاري الإنشاء...",
   "appt.created": "تم إنشاء الموعد لـ {name}",
   "appt.createdLabel": "أُنشئ للتو",
@@ -723,6 +776,18 @@ const ar: Record<TKey, string> = {
   "cal.availableSlots": "المواعيد المتاحة",
   "cal.noSlots": "لا مواعيد متاحة لهذا اليوم",
   "cal.googleBusy": "مشغول (Google)",
+  "cal.rdvCount": "{n} موعد",
+  "cal.noAppointmentsDay": "لا مواعيد",
+  "cal.add": "+ إضافة",
+  "cal.morning": "الصباح",
+  "cal.afternoon": "بعد الظهر",
+  "cal.evening": "المساء",
+  "cal.consultation": "استشارة",
+  "cal.cardMenu": "إجراءات الموعد",
+  "cal.cardViewDetails": "عرض التفاصيل",
+  "cal.cardReschedule": "إعادة الجدولة",
+  "cal.cardCancel": "إلغاء",
+  "cal.cardAria": "{time} · {name} · {status}",
 
   "widget.availableSlots": "المواعيد المتاحة",
   "widget.prevMonth": "الشهر السابق",
@@ -878,6 +943,7 @@ const ar: Record<TKey, string> = {
   "superadmin.cabinet.deleteError": "خطأ أثناء الحذف",
   "superadmin.cabinet.empty": "لا توجد عيادات",
   "superadmin.cabinet.users": "المستخدمون",
+  "superadmin.cabinet.channels": "القنوات",
   "superadmin.cabinet.status": "الحالة",
   "superadmin.cabinet.inactive": "غير نشط",
   "superadmin.cabinet.manage": "إدارة",
@@ -938,6 +1004,8 @@ const ar: Record<TKey, string> = {
   "history.count":
     "{n} موعدًا منتهيًا أو ملغى أو بدون حضور في السجل.",
   "history.empty": "لا مواعيد في السجل",
+  "history.description":
+    "السجل: المواعيد السابقة (قبل آخر 10 ساعات)، نفس فلاتر صفحة المواعيد.",
 };
 
 export const dictionary: Record<Lang, Record<TKey, string>> = { fr, ar };

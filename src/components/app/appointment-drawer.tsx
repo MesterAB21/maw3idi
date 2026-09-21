@@ -12,6 +12,7 @@ import {
 
 import { cn, avatarColor, initials } from "@/lib/utils";
 import { useApp } from "@/lib/app-context";
+import { formatApptTime } from "@/lib/appt-time";
 import type { TKey } from "@/lib/i18n";
 import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
@@ -46,9 +47,7 @@ function formatDate(iso: string): string {
 }
 
 function formatTime(iso: string): string {
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return "";
-  return d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+  return formatApptTime(iso);
 }
 
 function formatDateTime(iso: string): string {

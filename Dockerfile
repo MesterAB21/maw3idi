@@ -10,8 +10,10 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ARG API_BACKEND_URL=http://localhost:8000
+ARG META_APP_SECRET=maw3idi-test-meta-app-secret
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV API_BACKEND_URL=$API_BACKEND_URL
+ENV NEXT_PUBLIC_META_APP_SECRET=$META_APP_SECRET
 RUN npm run build
 
 FROM base AS runner

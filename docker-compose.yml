@@ -5,6 +5,7 @@ services:
       dockerfile: Dockerfile
       args:
         - API_BACKEND_URL=http://maw3idi-backend:8000
+        - META_APP_SECRET=${META_APP_SECRET:-maw3idi-test-meta-app-secret}
     container_name: maw3idi-frontend
     ports:
       - "3000:3000"

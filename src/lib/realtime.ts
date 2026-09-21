@@ -22,6 +22,7 @@ let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let reconnectDelay = 1000;
 let pingTimer: ReturnType<typeof setInterval> | null = null;
 let currentKey: string | null = null; // ws_url|token|channel
+let tokenProvider: (() => Promise<{ token: string; ws_url: string }>) | null = null;
 const listeners = new Set<Listener>();
 
 function notify(event: RealtimeEvent) {
@@ -43,13 +44,24 @@ function scheduleReconnect(connect: () => void) {
   }, reconnectDelay);
 }
 
-async function connect(key: string, wsUrl: string, token: string, cabinetId?: string) {
+async function connect(
+  key: string,
+  getToken: () => Promise<{ token: string; ws_url: string }>,
+  cabinetId?: string,
+) {
   if (socket && currentKey === key) return;
   disconnectSocket();
   currentKey = key;
+  tokenProvider = getToken;
   try {
-    const url = `${wsUrl}?token=${encodeURIComponent(token)}${cabinetId ? `&cabinet_id=${cabinetId}` : ""}`;
-    const ws = new WebSocket(url);
+    // Fetch a FRESH token on every (re)connect attempt: the server-issued
+    // ws-token only lives ~10 minutes, so reusing a stale one would loop
+    // forever (accept → 4401 → reconnect → accept → …).
+    const { token, ws_url } = await getToken();
+    if (socket && currentKey === key) return; // a newer attempt won the race
+    const ws = new WebSocket(
+      `${ws_url}?token=${encodeURIComponent(token)}${cabinetId ? `&cabinet_id=${cabinetId}` : ""}`,
+    );
     socket = ws;
     ws.onopen = () => {
       reconnectDelay = 1000;
@@ -75,7 +87,7 @@ async function connect(key: string, wsUrl: string, token: string, cabinetId?: st
     const onDead = () => {
       if (socket === ws) {
         disconnectSocket();
-        scheduleReconnect(() => void connect(key, wsUrl, token, cabinetId));
+        scheduleReconnect(() => void connect(key, getToken, cabinetId));
       }
     };
     ws.onclose = onDead;
@@ -87,7 +99,7 @@ async function connect(key: string, wsUrl: string, token: string, cabinetId?: st
       }
     };
   } catch {
-    scheduleReconnect(() => void connect(key, wsUrl, token, cabinetId));
+    scheduleReconnect(() => void connect(key, getToken, cabinetId));
   }
 }
 
@@ -105,13 +117,13 @@ function disconnectSocket() {
     socket = null;
   }
   currentKey = null;
+  tokenProvider = null;
 }
 
 async function ensureConnected(getToken: () => Promise<{ token: string; ws_url: string }>, cabinetId?: string) {
   if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) return;
   try {
-    const { token, ws_url } = await getToken();
-    await connect(`cabinet:${cabinetId ?? "user"}`, ws_url, token, cabinetId);
+    await connect(`cabinet:${cabinetId ?? "user"}`, getToken, cabinetId);
   } catch (err) {
     console.error("Realtime connect failed:", err);
   }

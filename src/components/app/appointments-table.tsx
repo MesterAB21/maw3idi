@@ -17,6 +17,7 @@ import {
 
 import { cn, avatarColor, initials } from "@/lib/utils";
 import { useApp } from "@/lib/app-context";
+import { formatApptTime } from "@/lib/appt-time";
 import { useCabinetRealtime, useRealtimeEvent } from "@/lib/realtime";
 import type { TKey } from "@/lib/i18n";
 import { useToast } from "@/components/ui/toast";
@@ -28,11 +29,29 @@ import { EmptyState } from "@/components/app/empty-state";
 import { AddAppointmentDialog } from "@/components/app/add-appointment-dialog";
 import type { Appointment, AppointmentStatus } from "@/lib/types";
 
-export type Filter = "ALL" | "TODAY" | "NEED_CALL" | "CONFIRMED" | "PENDING" | "CANCELLED";
+export type Filter =
+  | "ALL"
+  | "TODAY"
+  | "TOMORROW"
+  | "YESTERDAY"
+  | "NEED_CALL"
+  | "CONFIRMED"
+  | "PENDING"
+  | "CANCELLED";
 
-const FILTERS: { key: Filter; labelKey: TKey }[] = [
+const CURRENT_FILTERS: { key: Filter; labelKey: TKey }[] = [
   { key: "ALL", labelKey: "filter.ALL" },
   { key: "TODAY", labelKey: "filter.TODAY" },
+  { key: "TOMORROW", labelKey: "filter.TOMORROW" },
+  { key: "NEED_CALL", labelKey: "filter.NEED_CALL" },
+  { key: "CONFIRMED", labelKey: "filter.CONFIRMED" },
+  { key: "PENDING", labelKey: "filter.PENDING" },
+  { key: "CANCELLED", labelKey: "filter.CANCELLED" },
+];
+
+const HISTORY_FILTERS: { key: Filter; labelKey: TKey }[] = [
+  { key: "ALL", labelKey: "filter.ALL" },
+  { key: "YESTERDAY", labelKey: "filter.YESTERDAY" },
   { key: "NEED_CALL", labelKey: "filter.NEED_CALL" },
   { key: "CONFIRMED", labelKey: "filter.CONFIRMED" },
   { key: "PENDING", labelKey: "filter.PENDING" },
@@ -56,20 +75,61 @@ function formatDateForDisplay(dateStr: string): string {
 
 function formatTimeForDisplay(dateStr: string): string {
   try {
-    const date = new Date(dateStr);
-    if (isNaN(date.getTime())) return "";
-    return date.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+    return formatApptTime(dateStr);
   } catch {
     return "";
   }
 }
 
-function getTodayKey(): string {
-  const now = new Date();
-  const day = String(now.getDate()).padStart(2, "0");
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const year = now.getFullYear();
-  return `${day}/${month}/${year}`;
+function getDayKey(offsetDays: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + offsetDays);
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  return `${day}/${month}/${d.getFullYear()}`;
+}
+
+function todayKeyISO(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function addDaysISO(key: string, n: number): string {
+  const d = new Date(`${key}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+type TimeWindow = { from?: string; to?: string };
+
+/**
+ * Fenêtre temporelle serveur reflétant le filtre actif. La convention
+ * MAW3IDI stocke l'heure civile comme UTC : les bornes sont donc calculées
+ * en UTC pour rester cohérentes avec date_rendez_vous.
+ */
+function buildTimeWindow(
+  filter: Filter,
+  dateValue: string,
+  mode: "current" | "history"
+): TimeWindow {
+  const m = dateValue.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (m) {
+    const key = `${m[3]}-${m[2]}-${m[1]}`;
+    return { from: `${key}T00:00:00Z`, to: `${addDaysISO(key, 1)}T00:00:00Z` };
+  }
+  if (filter === "TODAY") {
+    const k = todayKeyISO();
+    return { from: `${k}T00:00:00Z`, to: `${addDaysISO(k, 1)}T00:00:00Z` };
+  }
+  if (filter === "TOMORROW") {
+    const k = addDaysISO(todayKeyISO(), 1);
+    return { from: `${k}T00:00:00Z`, to: `${addDaysISO(k, 1)}T00:00:00Z` };
+  }
+  if (filter === "YESTERDAY") {
+    const k = addDaysISO(todayKeyISO(), -1);
+    return { from: `${k}T00:00:00Z`, to: `${addDaysISO(k, 1)}T00:00:00Z` };
+  }
+  const cutoff = new Date(Date.now() - 10 * 3600 * 1000).toISOString();
+  return mode === "history" ? { to: cutoff } : { from: cutoff };
 }
 
 function mapFilterToBackendStatus(filter: Filter): string | null {
@@ -78,7 +138,9 @@ function mapFilterToBackendStatus(filter: Filter): string | null {
     case "CONFIRMED": return "confirme";
     case "PENDING": return "reserve,confirmation_envoyee";
     case "CANCELLED": return "annule";
-    case "TODAY": return null; // handled separately
+    case "TODAY": // handled separately
+    case "TOMORROW":
+    case "YESTERDAY": // handled separately
     default: return null;
   }
 }
@@ -87,12 +149,13 @@ export function AppointmentsTable({
   initialLoading = false,
   compact = false,
   initialFilter = "ALL",
+  mode = "current",
 }: {
   initialLoading?: boolean;
   compact?: boolean;
   initialFilter?: Filter;
+  mode?: "current" | "history";
 }) {
-  const { appointments, openDrawer, confirmAppointment, cancelAppointment, t, fetchAppointments, loading: contextLoading } =
   const { appointments, openDrawer, confirmAppointment, cancelAppointment, t, fetchAppointments, loading: contextLoading, syncAppointmentLocally } =
     useApp();
   const { toast } = useToast();
@@ -105,6 +168,13 @@ export function AppointmentsTable({
   const [serverPage, setServerPage] = React.useState(1);
   const [serverPageCount, setServerPageCount] = React.useState(1);
   const [totalCount, setTotalCount] = React.useState(0);
+  // Saisie sans "/" (les "/" s'insèrent automatiquement). Tant que la date
+  // n'est pas complète (8 chiffres) on ne filtre pas ; dès la complétion, la
+  // filtration se déclenche (dateFilter devient non vide).
+  const [dateDraft, setDateDraft] = React.useState("");
+  const dateFilter = /^\d{2}\/\d{2}\/\d{4}$/.test(dateDraft) ? dateDraft : "";
+
+  const FILTERS = mode === "history" ? HISTORY_FILTERS : CURRENT_FILTERS;
 
   React.useEffect(() => {
     if (!initialLoading) return;
@@ -112,59 +182,81 @@ export function AppointmentsTable({
     return () => clearTimeout(timer);
   }, [initialLoading]);
 
-  const loadServerList = React.useCallback((statuses: string | null) => {
-    fetchAppointments({
-      page: 1,
-      statuses: statuses || undefined,
-      sort: "date_desc",
-    }).then((res: any) => {
-      if (res) {
-        setServerPageCount(res.total ? Math.max(1, Math.ceil(res.total / PAGE_SIZE)) : 1);
-        setTotalCount(res.total ?? 0);
-      }
-    });
-  }, [fetchAppointments]);
+  const loadServerList = React.useCallback(
+    (statuses: string | null, window_?: TimeWindow) => {
+      fetchAppointments({
+        page: 1,
+        statuses: statuses || undefined,
+        date_from: window_?.from,
+        date_to: window_?.to,
+        sort: mode === "history" ? "date_desc" : "date_asc",
+      }).then((res: any) => {
+        if (res) {
+          setServerPageCount(res.total ? Math.max(1, Math.ceil(res.total / PAGE_SIZE)) : 1);
+          setTotalCount(res.total ?? 0);
+        }
+      });
+    },
+    [fetchAppointments, mode]
+  );
 
   // Filtres : immédiat. Recherche texte : debounce 300ms (doc §9).
   React.useEffect(() => {
     setServerPage(1);
-    loadServerList(mapFilterToBackendStatus(filter));
-  }, [filter, loadServerList]);
+    loadServerList(mapFilterToBackendStatus(filter), buildTimeWindow(filter, dateFilter, mode));
+  }, [filter, dateFilter, mode, loadServerList]);
 
   React.useEffect(() => {
     const timer = setTimeout(() => {
       setServerPage(1);
-      loadServerList(mapFilterToBackendStatus(filter));
+      loadServerList(mapFilterToBackendStatus(filter), buildTimeWindow(filter, dateFilter, mode));
     }, 300);
     return () => clearTimeout(timer);
-  }, [query, filter, loadServerList]);
+  }, [query, filter, dateFilter, mode, loadServerList]);
 
   // Push temps réel (doc §2) : refetch sur événement, jamais de polling.
   // Push temps réel (doc §2) : update direct en state, pas de polling.
   useCabinetRealtime();
   const filterRef = React.useRef(filter);
   filterRef.current = filter;
+  const dateFilterRef = React.useRef(dateFilter);
+  dateFilterRef.current = dateFilter;
+  const modeRef = React.useRef(mode);
+  modeRef.current = mode;
   useRealtimeEvent("appointment_updated", (event: any) => {
     if (event.data) {
       syncAppointmentLocally(event.data);
     } else {
-      loadServerList(mapFilterToBackendStatus(filterRef.current));
+      loadServerList(
+        mapFilterToBackendStatus(filterRef.current),
+        buildTimeWindow(filterRef.current, dateFilterRef.current, modeRef.current)
+      );
     }
   });
 
   // Legacy fallback if backend still sends appointments_changed
   useRealtimeEvent("appointments_changed", () => {
-    loadServerList(mapFilterToBackendStatus(filterRef.current));
+    loadServerList(
+      mapFilterToBackendStatus(filterRef.current),
+      buildTimeWindow(filterRef.current, dateFilterRef.current, modeRef.current)
+    );
   });
 
   const isLoading = loading || contextLoading;
 
   const filtered = React.useMemo(() => {
-    let list = appointments;
-    if (filter === "TODAY") {
-      const todayKey = getTodayKey();
-      list = list.filter((a) => formatDateForDisplay(a.date_rendez_vous) === todayKey);
-    }
+    const cutoff = Date.now() - 10 * 3600 * 1000;
+    let list = appointments.filter((a) => {
+      const time = new Date(a.date_rendez_vous).getTime();
+      if (dateFilter) {
+        return formatDateForDisplay(a.date_rendez_vous) === dateFilter;
+      }
+      if (filter === "TODAY") return formatDateForDisplay(a.date_rendez_vous) === getDayKey(0);
+      if (filter === "TOMORROW") return formatDateForDisplay(a.date_rendez_vous) === getDayKey(1);
+      if (filter === "YESTERDAY") return formatDateForDisplay(a.date_rendez_vous) === getDayKey(-1);
+      if (Number.isNaN(time)) return true;
+      return mode === "current" ? time > cutoff : time < cutoff;
+    });
     if (filter === "NEED_CALL") list = list.filter((a) => a.status === "need_call");
     if (filter === "CONFIRMED") list = list.filter((a) => a.status === "confirme");
     if (filter === "PENDING")
@@ -183,9 +275,11 @@ export function AppointmentsTable({
       );
     }
     return [...list].sort((a, b) =>
-      `${a.date_rendez_vous}`.localeCompare(`${b.date_rendez_vous}`)
+      mode === "history"
+        ? `${b.date_rendez_vous}`.localeCompare(`${a.date_rendez_vous}`)
+        : `${a.date_rendez_vous}`.localeCompare(`${b.date_rendez_vous}`)
     );
-  }, [appointments, filter, query]);
+  }, [appointments, filter, query, dateFilter, mode]);
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, pageCount);
@@ -193,7 +287,15 @@ export function AppointmentsTable({
 
   React.useEffect(() => {
     setPage(1);
-  }, [filter, query]);
+  }, [filter, query, dateFilter, mode]);
+
+  const handleDateInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const digits = e.target.value.replace(/\D/g, "").slice(0, 8);
+    let value = digits;
+    if (digits.length > 4) value = `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+    else if (digits.length > 2) value = `${digits.slice(0, 2)}/${digits.slice(2)}`;
+    setDateDraft(value);
+  };
 
   const handleConfirm = async (e: React.MouseEvent, a: Appointment) => {
     e.stopPropagation();
@@ -215,12 +317,12 @@ export function AppointmentsTable({
     }
   };
 
-  const canAct = !compact;
+  const canAct = !compact && mode === "current";
 
   return (
     <div>
       {/* Add appointment */}
-      {!compact ? (
+      {!compact && mode === "current" ? (
         <div className="mb-3 flex justify-end">
           <Button onClick={() => setAddOpen(true)}>
             <Plus className="size-4" />
@@ -249,6 +351,30 @@ export function AppointmentsTable({
                 onClick={() => setQuery("")}
                 className="absolute end-2.5 top-1/2 flex size-5 -translate-y-1/2 items-center justify-center rounded-full text-muted hover:bg-surface-card"
                 aria-label={t("table.clearSearch")}
+              >
+                <X className="size-3.5" />
+              </button>
+            ) : null}
+          </div>
+          {/* Filtre par date : saisie libre des chiffres de gauche à droite,
+              "/" insérés automatiquement, filtration dès 8 chiffres saisis. */}
+          <div className="relative">
+            <CalendarDays className="pointer-events-none absolute start-2.5 top-1/2 size-4 -translate-y-1/2 text-muted" />
+            <Input
+              value={dateDraft}
+              onChange={handleDateInput}
+              inputMode="numeric"
+              maxLength={10}
+              placeholder={t("table.filterByDate")}
+              aria-label={t("table.filterByDate")}
+              className="h-10 w-40 rounded-full ps-9 pe-9 text-center font-mono text-[13px]"
+            />
+            {dateDraft ? (
+              <button
+                type="button"
+                onClick={() => setDateDraft("")}
+                aria-label={t("table.clearDateFilter")}
+                className="absolute end-2 top-1/2 flex size-5 -translate-y-1/2 items-center justify-center rounded-full text-muted hover:bg-surface-card"
               >
                 <X className="size-3.5" />
               </button>

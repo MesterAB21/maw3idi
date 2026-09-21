@@ -5,6 +5,9 @@ import { CalendarDays, Check, Phone, User } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { useApp } from "@/lib/app-context";
+import { api } from "@/lib/api";
+import { avatarColor, initials } from "@/lib/utils";
+import type { Patient } from "@/lib/types";
 import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -105,7 +108,6 @@ function AddAppointmentForm({
   initialTime?: string | null;
   onClose: () => void;
 }) {
-  const { t, createAppointment, fetchAppointments, fetchAvailableSlots } = useApp();
   const { t, createAppointment, fetchAppointments, fetchAvailableSlots, fetchCalendar } = useApp();
   const { toast } = useToast();
 
@@ -120,6 +122,55 @@ function AddAppointmentForm({
   const [slots, setSlots] = React.useState<string[]>([]);
   const [slotsLoading, setSlotsLoading] = React.useState(false);
   const [fieldErrors, setFieldErrors] = React.useState<{ name?: string; phone?: string; dob?: string }>({});
+  // Recherche d'un patient EXISTANT : suggestions pendant la saisie du nom.
+  const [suggestions, setSuggestions] = React.useState<Patient[]>([]);
+  const [suggestLoading, setSuggestLoading] = React.useState(false);
+  const [showSuggest, setShowSuggest] = React.useState(false);
+  const [suggestField, setSuggestField] = React.useState<"name" | "phone" | null>(null);
+  const [selectedPatient, setSelectedPatient] = React.useState<Patient | null>(null);
+
+  // Filtre en direct : dès 2 lettres (nom) ou 3 chiffres (téléphone), on cherche
+  // parmi les patients du cabinet (le backend matche nom OU numéro).
+  React.useEffect(() => {
+    const q = name.trim();
+    const digits = phone.replace(/\D/g, "");
+    const field: "name" | "phone" | null =
+      q.length >= 2 ? "name" : digits.length >= 3 ? "phone" : null;
+    setSuggestField(field);
+    if (!field) {
+      setSuggestLoading(false);
+      setSuggestions([]);
+      return;
+    }
+    const query = field === "phone" ? phone.replace(/[^\d+]/g, "") : q;
+    const handle = window.setTimeout(async () => {
+      setSuggestLoading(true);
+      try {
+        const res = await api.listPatients({ search: query, page_size: 5 });
+        setSuggestions(res.data ?? []);
+        setShowSuggest(true);
+      } catch {
+        setSuggestions([]);
+      } finally {
+        setSuggestLoading(false);
+      }
+    }, 250);
+    return () => window.clearTimeout(handle);
+  }, [name, phone, selectedPatient]);
+
+  const toDobMask = (v: string) => {
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(v);
+    return m ? `${m[3]}/${m[2]}/${m[1]}` : v;
+  };
+
+  const pickPatient = (p: Patient) => {
+    setSelectedPatient(p);
+    setName(p.patient_name);
+    setPhone(p.patient_phone ?? "");
+    if (p.date_de_naissance) setDob(toDobMask(p.date_de_naissance));
+    setSuggestions([]);
+    setShowSuggest(false);
+  };
 
   // Pré-chauffage du cache : au montage du form, on déclenche silencieusement
   // un fetchCalendar sur le mois courant. Cela remplit le cache Redis côté
@@ -195,6 +246,7 @@ function AddAppointmentForm({
         date: toKey(date),
         time,
         dateOfBirth: dobIso,
+        patientId: selectedPatient?.id,
       });
       toast(t("appt.created", { name: name.trim() }), "success");
       await fetchAppointments();
@@ -244,17 +296,64 @@ function AddAppointmentForm({
                 value={name}
                 onChange={(e) => {
                   setName(e.target.value);
+                  setSelectedPatient(null);
                   if (fieldErrors.name) setFieldErrors((p) => ({ ...p, name: undefined }));
                 }}
-                onFocus={() => setNameFocus(true)}
-                onBlur={() => setNameFocus(false)}
+                onFocus={() => {
+                  setNameFocus(true);
+                  setSuggestField("name");
+                  if (suggestions.length > 0 && !selectedPatient) setShowSuggest(true);
+                }}
+                onBlur={() => {
+                  setNameFocus(false);
+                  window.setTimeout(() => setShowSuggest(false), 150);
+                }}
                 placeholder={t("appt.namePlaceholder")}
                 className="ps-9"
                 autoComplete="off"
               />
+              {showSuggest && suggestField === "name" && !selectedPatient && suggestions.length > 0 && (
+                <div className="absolute z-20 mt-1 w-full overflow-hidden rounded-lg border border-hairline bg-surface-0 shadow-lg">
+                  {suggestions.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        pickPatient(p);
+                      }}
+                      className="flex w-full items-center gap-2.5 px-3 py-2 text-start hover:bg-surface-soft"
+                    >
+                      <span
+                        className="flex size-7 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold text-white"
+                        style={{ backgroundColor: avatarColor(p.patient_name) }}
+                      >
+                        {initials(p.patient_name)}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[13px] font-medium text-ink">
+                          {p.patient_name}
+                        </span>
+                        <span className="block truncate text-[12px] text-muted">
+                          {p.patient_phone}
+                        </span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
             {fieldErrors.name ? (
               <p className="mt-1 text-[12px] font-medium text-danger">{fieldErrors.name}</p>
+            ) : selectedPatient ? (
+              <button
+                type="button"
+                onClick={() => setSelectedPatient(null)}
+                className="mt-1 block text-left text-[12px] font-medium text-primary hover:underline"
+              >
+                {t("appt.existingPatient")} : {selectedPatient.patient_name} ·{" "}
+                {selectedPatient.patient_phone} — {t("appt.changePatient")}
+              </button>
             ) : name.trim().length > 0 ? (
               <p className="mt-1 text-[12px] text-muted">{t("appt.newPatient")}</p>
             ) : null}
@@ -275,15 +374,53 @@ function AddAppointmentForm({
                 value={phone}
                 onChange={(e) => {
                   setPhone(e.target.value);
+                  setSelectedPatient(null);
                   if (fieldErrors.phone) setFieldErrors((p) => ({ ...p, phone: undefined }));
                 }}
-                onFocus={() => setPhoneFocus(true)}
-                onBlur={() => setPhoneFocus(false)}
+                onFocus={() => {
+                  setPhoneFocus(true);
+                  setSuggestField("phone");
+                  if (suggestions.length > 0 && !selectedPatient) setShowSuggest(true);
+                }}
+                onBlur={() => {
+                  setPhoneFocus(false);
+                  window.setTimeout(() => setShowSuggest(false), 150);
+                }}
                 placeholder="0781569010"
                 inputMode="tel"
                 className="ps-9"
                 autoComplete="off"
               />
+              {showSuggest && suggestField === "phone" && !selectedPatient && suggestions.length > 0 && (
+                <div className="absolute z-20 mt-1 w-full overflow-hidden rounded-lg border border-hairline bg-surface-0 shadow-lg">
+                  {suggestions.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        pickPatient(p);
+                      }}
+                      className="flex w-full items-center gap-2.5 px-3 py-2 text-start hover:bg-surface-soft"
+                    >
+                      <span
+                        className="flex size-7 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold text-white"
+                        style={{ backgroundColor: avatarColor(p.patient_name) }}
+                      >
+                        {initials(p.patient_name)}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[13px] font-medium text-ink">
+                          {p.patient_name}
+                        </span>
+                        <span className="block truncate text-[12px] text-muted">
+                          {p.patient_phone}
+                        </span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
             {fieldErrors.phone ? (
               <p className="mt-1 text-[12px] font-medium text-danger">{fieldErrors.phone}</p>

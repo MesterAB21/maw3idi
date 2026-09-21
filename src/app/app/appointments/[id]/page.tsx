@@ -14,6 +14,8 @@ import {
 
 import { cn, avatarColor, initials } from "@/lib/utils";
 import { useApp } from "@/lib/app-context";
+import { formatApptTime } from "@/lib/appt-time";
+import { useAppRoot } from "@/lib/use-app-root";
 import type { TKey } from "@/lib/i18n";
 import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
@@ -54,9 +56,7 @@ function formatDate(iso: string): string {
 }
 
 function formatTime(iso: string): string {
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return "";
-  return d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+  return formatApptTime(iso);
 }
 
 function formatDateTime(iso: string): string {
@@ -82,6 +82,7 @@ function lastInteractionHoursAgo(appt: Appointment): number | null {
 export default function AppointmentDetailPage() {
   const params = useParams<{ id: string }>();
   const { appointments, confirmAppointment, cancelAppointment, t } = useApp();
+  const root = useAppRoot();
   const { toast } = useToast();
 
   const appointment = appointments.find((a) => a.id === params.id) ?? null;
@@ -92,7 +93,7 @@ export default function AppointmentDetailPage() {
         <EmptyState title={t("detail.notFound", { id: params.id ?? "" })} />
         <div className="pb-8 text-center">
           <Link
-            href="/app/appointments"
+            href={`${root}/appointments`}
             className="text-body-sm font-medium text-brand-primary hover:text-brand-primary-active"
           >
             ← {t("detail.backToList")}
@@ -120,7 +121,7 @@ export default function AppointmentDetailPage() {
   return (
     <div className="mx-auto max-w-3xl">
       <Link
-        href="/app/appointments"
+        href={`${root}/appointments`}
         className="mb-5 inline-flex items-center gap-1.5 text-body-sm font-medium text-muted transition-colors duration-150 hover:text-brand-primary"
       >
         <ArrowLeft className="size-3.5 rtl:rotate-180" />

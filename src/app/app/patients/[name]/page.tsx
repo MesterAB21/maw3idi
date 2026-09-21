@@ -7,13 +7,28 @@ import { ArrowLeft, CalendarDays, Clock, Phone } from "lucide-react";
 
 import { cn, avatarColor, initials } from "@/lib/utils";
 import { useApp } from "@/lib/app-context";
+import { useAppRoot } from "@/lib/use-app-root";
 import { derivePatients } from "@/lib/patients";
+import { formatApptTime } from "@/lib/appt-time";
 import { EmptyState } from "@/components/app/empty-state";
 import { StatusBadge } from "@/components/app/status-badge";
+
+function formatDateForDisplay(dateStr: string): string {
+  try {
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return dateStr;
+    const day = String(date.getDate()).padStart(2, "0");
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    return `${day}/${month}/${date.getFullYear()}`;
+  } catch {
+    return dateStr;
+  }
+}
 
 export default function PatientDetailPage() {
   const params = useParams<{ name: string }>();
   const { appointments, openDrawer, t } = useApp();
+  const root = useAppRoot();
 
   const decoded = React.useMemo(() => {
     try {
@@ -31,8 +46,10 @@ export default function PatientDetailPage() {
   const list = React.useMemo(
     () =>
       appointments
-        .filter((a) => a.patientName === decoded)
-        .sort((a, b) => `${b.date} ${b.time}`.localeCompare(`${a.date} ${a.time}`)),
+        .filter((a) => a.patient?.patient_name === decoded)
+        .sort((a, b) =>
+          `${b.date_rendez_vous}`.localeCompare(`${a.date_rendez_vous}`)
+        ),
     [appointments, decoded]
   );
 
@@ -42,7 +59,7 @@ export default function PatientDetailPage() {
         <EmptyState title={t("patients.notFound")} />
         <div className="pb-8 text-center">
           <Link
-            href="/app/patients"
+            href={`${root}/patients`}
             className="text-body-sm font-medium text-brand-primary hover:text-brand-primary-active"
           >
             ← {t("patients.back")}
@@ -55,7 +72,7 @@ export default function PatientDetailPage() {
   return (
     <div className="mx-auto max-w-3xl">
       <Link
-        href="/app/patients"
+        href={`${root}/patients`}
         className="mb-5 inline-flex items-center gap-1.5 text-body-sm font-medium text-muted transition-colors duration-150 hover:text-brand-primary"
       >
         <ArrowLeft className="size-3.5 rtl:rotate-180" />
@@ -114,17 +131,17 @@ export default function PatientDetailPage() {
                 )}
               >
                 <span className="min-w-[64px] font-mono text-[15px] font-semibold text-ink">
-                  {a.time}
+                  {formatApptTime(a.date_rendez_vous)}
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-[13px] font-semibold text-ink">
-                    {a.type}
+                    {a.type ?? "—"}
                   </span>
                   <span className="flex items-center gap-1.5 text-[12px] text-muted">
                     <CalendarDays className="size-3.5" />
-                    {a.date}
+                    {formatDateForDisplay(a.date_rendez_vous)}
                     <Clock className="ms-1 size-3.5" />
-                    {a.time}
+                    {formatApptTime(a.date_rendez_vous)}
                   </span>
                 </span>
                 <StatusBadge status={a.status} size="md" />

@@ -27,6 +27,8 @@ export interface NewAppointmentInput {
   date: string;
   time: string;
   dateOfBirth?: string;
+  /** When selecting an existing patient, the appointment attaches directly to it. */
+  patientId?: string;
 }
 
 export interface AvailabilitySlot {
@@ -432,19 +434,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     try {
       const [d, m, y] = input.date.split("/");
       const dateTime = `${y}-${m}-${d}T${input.time}:00`;
-      const patient = await api.findOrCreatePatient({
-        cabinet_id: cabinet.id,
-        patient_name: input.patientName,
-        patient_phone: input.phone,
-        date_de_naissance: input.dateOfBirth || undefined,
-        contact_channel: "phone",
-        contact_id: input.phone,
-      });
+      let patient: Patient;
+      if (input.patientId) {
+        patient = { id: input.patientId } as Patient;
+      } else {
+        patient = await api.findOrCreatePatient({
+          cabinet_id: cabinet.id,
+          patient_name: input.patientName,
+          patient_phone: input.phone,
+          date_de_naissance: input.dateOfBirth || undefined,
+          contact_channel: "manual",
+          contact_id: input.phone,
+        });
+      }
       const appt = await api.createAppointment({
         patient_id: patient.id,
         date_rendez_vous: dateTime,
         duration_minutes: cabinet.slot_duration_minutes,
-        canal: "phone",
+        canal: "manual",
       });
       setAppointments((prev) => [appt, ...prev]);
       await fetchDashboardStatsData(cabinet.id);

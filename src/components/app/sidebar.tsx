@@ -4,6 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  Bot,
   Building2,
   CalendarDays,
   ChevronDown,
@@ -22,6 +23,7 @@ import {
 
 import { cn, avatarColor, initials } from "@/lib/utils";
 import { useApp } from "@/lib/app-context";
+import { useAppRoot } from "@/lib/use-app-root";
 import type { TKey } from "@/lib/i18n";
 import { LogoMark } from "@/components/brand/logo";
 import { Button } from "@/components/ui/button";
@@ -36,42 +38,48 @@ import {
 
 interface NavItem {
   href: string;
-  labelKey: TKey;
+  labelKey?: TKey;
+  label?: string; // literal label override (e.g. test-only "Agent IA")
   icon: LucideIcon;
   adminOnly?: boolean;
   superAdminOnly?: boolean;
+  testOnly?: boolean; // shown only inside the /test section
   superAdminTab?: string; // for superadmin tab navigation
 }
 
 const NAV: { sectionKey: TKey; items: NavItem[] }[] = [
+  // hrefs are relative to the app root (/app or /test); see SidebarInner.
   {
     sectionKey: "nav.section.main",
     items: [
-      { href: "/app/dashboard", labelKey: "nav.dashboard", icon: LayoutDashboard },
-      { href: "/app/appointments", labelKey: "nav.appointments", icon: CalendarDays },
-      { href: "/app/patients", labelKey: "nav.patients", icon: UserRound },
-      { href: "/app/calendar", labelKey: "nav.calendar", icon: CalendarDays },
+      { href: "/agent", label: "Agent IA", icon: Bot, testOnly: true },
+      { href: "/dashboard", labelKey: "nav.dashboard", icon: LayoutDashboard },
+      { href: "/appointments", labelKey: "nav.appointments", icon: CalendarDays },
+      { href: "/patients", labelKey: "nav.patients", icon: UserRound },
+      { href: "/calendar", labelKey: "nav.calendar", icon: CalendarDays },
+      { href: "/history", labelKey: "nav.history", icon: History },
     ],
   },
   {
     sectionKey: "nav.section.account",
     items: [
-      { href: "/app/history", labelKey: "nav.history", icon: History },
-      { href: "/app/settings", labelKey: "nav.settings", icon: Settings, adminOnly: true },
-      { href: "/app/team", labelKey: "nav.team", icon: Users, adminOnly: true },
+      { href: "/settings", labelKey: "nav.settings", icon: Settings, adminOnly: true },
+      { href: "/team", labelKey: "nav.team", icon: Users, adminOnly: true },
     ],
   },
   {
     sectionKey: "nav.section.superadmin",
     items: [
-      { href: "/app/superadmin?tab=cabinets", labelKey: "nav.superadmin.cabinets", icon: Building2, superAdminOnly: true },
-      { href: "/app/superadmin?tab=users", labelKey: "nav.superadmin.users", icon: Users, superAdminOnly: true },
+      { href: "/superadmin?tab=dashboard", labelKey: "nav.dashboard", icon: LayoutDashboard, superAdminOnly: true },
+      { href: "/superadmin?tab=cabinets", labelKey: "nav.superadmin.cabinets", icon: Building2, superAdminOnly: true },
+      { href: "/superadmin?tab=users", labelKey: "nav.superadmin.users", icon: Users, superAdminOnly: true },
     ],
   },
 ];
 
 function SidebarInner({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
+  const root = useAppRoot();
   const { role, authUser, switchRole, logout, t } = useApp();
   const isSuperAdmin = authUser?.isSuperAdmin ?? false;
   const userName = authUser?.name ?? "…";
@@ -109,19 +117,24 @@ function SidebarInner({ onNavigate }: { onNavigate?: () => void }) {
   };
 
   // Super admins get a dedicated sidebar: Cabinets + Utilisateurs only.
-  const items = isSuperAdmin
+  const items = (isSuperAdmin
     ? NAV.filter((s) => s.sectionKey === "nav.section.superadmin").map((s) => ({
         ...s,
-        items: s.items.filter((i) => !i.adminOnly),
+        items: s.items.filter((i) => !i.adminOnly && !i.testOnly),
       }))
     : NAV.map((s) => ({
         ...s,
         items: s.items.filter(
           (i) =>
             (!i.adminOnly || role === "ADMIN") &&
-            (!i.superAdminOnly || isSuperAdmin)
+            (!i.superAdminOnly || isSuperAdmin) &&
+            (!i.testOnly || root === "/test")
         ),
-      })).filter((s) => s.items.length > 0);
+      })).filter((s) => s.items.length > 0)
+  ).map((s) => ({
+    ...s,
+    items: s.items.map((i) => ({ ...i, href: root + i.href })),
+  }));
 
   return (
     <div className="flex h-full flex-col bg-surface-soft">
@@ -160,7 +173,7 @@ function SidebarInner({ onNavigate }: { onNavigate?: () => void }) {
                           active ? "text-white" : "text-muted"
                         )}
                       />
-                      {t(item.labelKey)}
+                      {item.label ?? (item.labelKey ? t(item.labelKey) : "")}
                     </Link>
                   </li>
                 );
