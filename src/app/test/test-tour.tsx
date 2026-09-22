@@ -147,12 +147,12 @@ interface StepDef {
   callStep?: boolean;
 }
 
-// Premier passage : petit guide « setup » (3 étapes) qui présente le cabinet
-// de démonstration AVANT le grand tour. Clés de stockage indépendantes.
+// Guide « setup » (3 étapes) : présente le cabinet de démonstration au premier
+// accès à /test/settings (pas à l'entrée du test). Clés de stockage indépendantes.
 const SETUP_STEPS: StepDef[] = [
   {
     id: "setup-availability",
-    route: "/test/agent",
+    route: "/test/settings",
     position: "center",
     title: "Disponibilité",
     body: (
@@ -166,7 +166,7 @@ const SETUP_STEPS: StepDef[] = [
   },
   {
     id: "setup-informations",
-    route: "/test/agent",
+    route: "/test/settings",
     position: "center",
     title: "Informations",
     body: (
@@ -181,7 +181,7 @@ const SETUP_STEPS: StepDef[] = [
   },
   {
     id: "setup-google",
-    route: "/test/agent",
+    route: "/test/settings",
     position: "center",
     title: "Google agenda",
     body: (
@@ -381,10 +381,17 @@ export function TestTourGuide({ children }: { children: React.ReactNode }) {
   };
 
   const finish = React.useCallback(() => {
-    writeKey(TOUR_STORAGE_KEY);
+    // Fermer le guide « setup » marque aussi le tour comme terminé :
+    // l'utilisateur ne veut pas être guidé.
+    if (flow === "setup") {
+      writeKey(SETUP_STORAGE_KEY);
+      writeKey(TOUR_STORAGE_KEY);
+    } else {
+      writeKey(TOUR_STORAGE_KEY);
+    }
     setActive(false);
     setRect(null);
-  }, []);
+  }, [flow]);
 
   const dismissPageGuide = () => {
     if (!pageGuide) return;
@@ -392,16 +399,34 @@ export function TestTourGuide({ children }: { children: React.ReactNode }) {
     setPageGuide(null);
   };
 
-  // Démarrage une seule fois : d'abord le guide « setup », ensuite le tour.
+  // Démarrage une seule fois : le grand tour démarre dès l'entrée dans /test ;
+  // le guide « setup » n'apparaît qu'au premier accès à /test/settings.
   React.useEffect(() => {
     const setupDone = readKey(SETUP_STORAGE_KEY) === "done";
     const tourDone = readKey(TOUR_STORAGE_KEY) === "done";
     if (setupDone && tourDone) return;
-    setFlow(setupDone ? "tour" : "setup");
+    if (!setupDone && pathname.startsWith("/test/settings")) {
+      setFlow("setup");
+    } else if (!tourDone) {
+      setFlow("tour");
+    } else {
+      return;
+    }
     setActive(true);
     setStepIndex(0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Premier accès à /test/settings : le guide « setup » (Disponibilité,
+  // Informations, Google agenda) se déclenche ici, pas à l'entrée du test.
+  React.useEffect(() => {
+    if (flow === "setup" && active) return;
+    if (!pathname.startsWith("/test/settings")) return;
+    if (readKey(SETUP_STORAGE_KEY) === "done") return;
+    setFlow("setup");
+    setActive(true);
+    setStepIndex(0);
+  }, [pathname, active, flow]);
 
   // Guides « équipe » / « historique » : une seule fois, au premier accès, et
   // jamais pendant que le tour (ou le setup) est à l'écran.
@@ -587,15 +612,23 @@ export function TestTourGuide({ children }: { children: React.ReactNode }) {
   // tant que l'utilisateur navigue ailleurs ; reprise au retour).
   if (!pathname.startsWith(step.route)) return <>{children}</>;
 
+  // Sur /test/agent, les widgets sont positionnés un peu plus bas.
+  const isAgentStep = step.route === "/test/agent";
   const widgetPosClass =
     step.position === "center"
-      ? "left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+      ? isAgentStep
+        ? "left-1/2 top-[70%] -translate-x-1/2 -translate-y-1/2"
+        : "left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
       : step.position === "top-right"
         ? "top-20 end-4"
         : step.position === "right-low"
-          ? "end-4 top-[62%] -translate-y-1/2"
+          ? isAgentStep
+            ? "end-4 top-[82%] -translate-y-1/2"
+            : "end-4 top-[62%] -translate-y-1/2"
           : step.lift
-            ? "end-4 top-[36%] -translate-y-1/2"
+            ? isAgentStep
+              ? "end-4 top-[60%] -translate-y-1/2"
+              : "end-4 top-[36%] -translate-y-1/2"
             : "end-4 top-1/2 -translate-y-1/2";
 
   return (
