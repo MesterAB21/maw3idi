@@ -10,7 +10,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CalendarWidget } from "@/components/app/calendar-widget";
 import { LogoMark } from "@/components/brand/logo";
-import { useRouter } from "next/navigation";
 
 // MAW3IDI team schedule (front-only): Sun–Thu, 30-min slots.
 const TEAM_SLOTS = [
@@ -30,16 +29,7 @@ function addMinutes(t: string, mins: number): string {
 }
 
 export default function CommencerPage() {
-  const { authUser, t } = useApp();
-  const router = useRouter();
-
-  // If already authenticated, redirect based on role
-  React.useEffect(() => {
-    if (authUser) {
-      const redirectPath = authUser.isSuperAdmin ? "/app/superadmin" : "/app/dashboard";
-      router.replace(redirectPath);
-    }
-  }, [authUser, router]);
+  const { t } = useApp();
 
   const today = React.useMemo(() => {
     const d = new Date();

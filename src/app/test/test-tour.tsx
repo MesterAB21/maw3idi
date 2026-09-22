@@ -14,8 +14,14 @@ import { LogoMark } from "@/components/brand/logo";
 import type { AppointmentStatus } from "@/lib/types";
 
 const TOUR_STORAGE_KEY = "maw3idi:test:tour";
+const SETUP_STORAGE_KEY = "maw3idi:test:setup";
+const TEAM_GUIDE_KEY = "maw3idi:test:guide:team";
+const HISTORY_GUIDE_KEY = "maw3idi:test:guide:history";
 
 type StepId =
+  | "setup-availability"
+  | "setup-informations"
+  | "setup-google"
   | "welcome"
   | "calendar"
   | "appointments-table"
@@ -25,7 +31,7 @@ type StepId =
   | "agent-discussion"
   | "agent-call";
 
-type WidgetPos = "center" | "right" | "top-right" | "bottom-center";
+type WidgetPos = "center" | "right" | "right-low" | "top-right" | "bottom-center";
 
 interface PipeNodeDef {
   left: number;
@@ -141,7 +147,55 @@ interface StepDef {
   callStep?: boolean;
 }
 
-const STEPS: StepDef[] = [
+// Premier passage : petit guide « setup » (3 étapes) qui présente le cabinet
+// de démonstration AVANT le grand tour. Clés de stockage indépendantes.
+const SETUP_STEPS: StepDef[] = [
+  {
+    id: "setup-availability",
+    route: "/test/agent",
+    position: "center",
+    title: "Disponibilité",
+    body: (
+      <>
+        Votre cabinet Brain Care est déjà paramétré : disponible du dimanche au
+        jeudi, de 9h à 12h et de 13h à 17h, par créneaux de 30 minutes. C'est
+        ce que vos patients voient pour réserver un rendez-vous.
+      </>
+    ),
+    nextText: "Suivant",
+  },
+  {
+    id: "setup-informations",
+    route: "/test/agent",
+    position: "center",
+    title: "Informations",
+    body: (
+      <>
+        Le cabinet de démonstration est prêt : <strong>Brain Care</strong> à
+        Achour (Alger), avec votre secrétaire IA <strong>Walid</strong>. Nom,
+        localisation et numéros de contact sont pré-remplis et modifiables dans
+        Réglages.
+      </>
+    ),
+    nextText: "Suivant",
+  },
+  {
+    id: "setup-google",
+    route: "/test/agent",
+    position: "center",
+    title: "Google agenda",
+    body: (
+      <>
+        MAW3IDI est connecté à l&apos;agenda Google par défaut (
+        <strong>mesterab20@gmail.com</strong>) : chaque rendez-vous réservé
+        apparaît automatiquement dans votre calendrier.
+      </>
+    ),
+    nextText: "Suivant",
+  },
+];
+
+const TOUR_STEPS: StepDef[] = [
   {
     id: "welcome",
     route: "/test/agent",
@@ -240,7 +294,7 @@ const STEPS: StepDef[] = [
     route: "/test/agent",
     target: "[data-tour='discussion-picker']",
     unionTargets: ["[data-tour='discussion-picker']", "[data-tour='discussion-menu']"],
-    position: "right",
+    position: "right-low",
     title: "Nouvelle discussion",
     body: (
       <>
@@ -302,44 +356,94 @@ export function TestTourGuide({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [active, setActive] = React.useState(false);
+  const [flow, setFlow] = React.useState<"setup" | "tour">("tour");
   const [stepIndex, setStepIndex] = React.useState(0);
   const [rect, setRect] = React.useState<DOMRect | null>(null);
+  const [pageGuide, setPageGuide] = React.useState<"team" | "history" | null>(null);
 
-  const step = STEPS[stepIndex];
+  const flowSteps = flow === "setup" ? SETUP_STEPS : TOUR_STEPS;
+  const step = flowSteps[stepIndex];
 
-  const finish = React.useCallback(() => {
+  const readKey = (key: string): string | null => {
     try {
-      window.localStorage.setItem(TOUR_STORAGE_KEY, "done");
+      return window.localStorage.getItem(key);
+    } catch {
+      return "done";
+    }
+  };
+
+  const writeKey = (key: string) => {
+    try {
+      window.localStorage.setItem(key, "done");
     } catch {
       // stockage indisponible → on ne relance simplement pas automatiquement
     }
+  };
+
+  const finish = React.useCallback(() => {
+    writeKey(TOUR_STORAGE_KEY);
     setActive(false);
     setRect(null);
   }, []);
 
-  // Démarrage une seule fois (premier passage en mode test).
+  const dismissPageGuide = () => {
+    if (!pageGuide) return;
+    writeKey(pageGuide === "team" ? TEAM_GUIDE_KEY : HISTORY_GUIDE_KEY);
+    setPageGuide(null);
+  };
+
+  // Démarrage une seule fois : d'abord le guide « setup », ensuite le tour.
   React.useEffect(() => {
-    let done: string | null = null;
-    try {
-      done = window.localStorage.getItem(TOUR_STORAGE_KEY);
-    } catch {
-      done = "done";
-    }
-    if (done === "done") return;
+    const setupDone = readKey(SETUP_STORAGE_KEY) === "done";
+    const tourDone = readKey(TOUR_STORAGE_KEY) === "done";
+    if (setupDone && tourDone) return;
+    setFlow(setupDone ? "tour" : "setup");
     setActive(true);
     setStepIndex(0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Guides « équipe » / « historique » : une seule fois, au premier accès, et
+  // jamais pendant que le tour (ou le setup) est à l'écran.
+  React.useEffect(() => {
+    if (active) {
+      setPageGuide(null);
+      return;
+    }
+    let guide: "team" | "history" | null = null;
+    if (pathname.startsWith("/test/team")) {
+      guide = "team";
+    } else if (pathname.startsWith("/test/history")) {
+      guide = "history";
+    }
+    if (!guide) {
+      setPageGuide(null);
+      return;
+    }
+    const key = guide === "team" ? TEAM_GUIDE_KEY : HISTORY_GUIDE_KEY;
+    setPageGuide(readKey(key) === "done" ? null : guide);
+  }, [pathname, active]);
+
   // Navigation automatique via les boutons « Suivant ».
   const goNext = () => {
-    const current = STEPS[stepIndex];
+    if (flow === "setup") {
+      writeKey(SETUP_STORAGE_KEY);
+      if (readKey(TOUR_STORAGE_KEY) !== "done") {
+        setFlow("tour");
+        setStepIndex(0);
+      } else {
+        setActive(false);
+      }
+      setRect(null);
+      return;
+    }
+    const current = TOUR_STEPS[stepIndex];
     if (current.next) return current.next();
     const nextIndex = stepIndex + 1;
     if (current.nextRoute) {
       router.push(current.nextRoute);
     }
-    setStepIndex(nextIndex < STEPS.length ? nextIndex : stepIndex);
+    setStepIndex(nextIndex < TOUR_STEPS.length ? nextIndex : stepIndex);
     setRect(null);
   };
 
@@ -426,7 +530,58 @@ export function TestTourGuide({ children }: { children: React.ReactNode }) {
     };
   }, [active, step, finish]);
 
-  if (!active) return <>{children}</>;
+  if (!active) {
+    return (
+      <>
+        {children}
+        {pageGuide && (
+          <>
+            <div className="fixed inset-0 z-[99] bg-ink/55" aria-hidden />
+            <div
+              role="dialog"
+              aria-label={pageGuide === "team" ? "Équipe" : "Historique"}
+              className="fixed left-1/2 top-1/2 z-[110] w-[min(92vw,360px)] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-2xl bg-white shadow-[0_20px_60px_rgba(15,23,42,0.35)]"
+            >
+              <div className="border-b border-gray-100 px-5 py-4">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2.5">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-blue-700 text-white">
+                      <Bot className="h-5 w-5" />
+                    </span>
+                    <h2 className="text-base font-semibold text-gray-900">
+                      {pageGuide === "team" ? "Équipe" : "Historique"}
+                    </h2>
+                  </div>
+                  <button
+                    type="button"
+                    aria-label="Fermer"
+                    onClick={dismissPageGuide}
+                    className="flex size-7 shrink-0 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+              <div className="px-5 py-4">
+                <div className="text-sm leading-relaxed text-gray-600">
+                  {pageGuide === "team"
+                    ? "Invitez vos secrétaires : elles peuvent suivre les rendez-vous, confirmer, annuler et rappeler les patients. Dans la démo, une secrétaire est déjà incluse."
+                    : "L'historique conserve tous les rendez-vous passés et permet de les filtrer par statut ou par période pour analyser votre activité."}
+                </div>
+                <button
+                  type="button"
+                  onClick={dismissPageGuide}
+                  className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-6 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700"
+                >
+                  Compris
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+      </>
+    );
+  }
 
   // La carte ne s'affiche que sur la bonne route de l'étape courante (pause
   // tant que l'utilisateur navigue ailleurs ; reprise au retour).
@@ -437,9 +592,11 @@ export function TestTourGuide({ children }: { children: React.ReactNode }) {
       ? "left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
       : step.position === "top-right"
         ? "top-20 end-4"
-        : step.lift
-          ? "end-4 top-[36%] -translate-y-1/2"
-          : "end-4 top-1/2 -translate-y-1/2";
+        : step.position === "right-low"
+          ? "end-4 top-[62%] -translate-y-1/2"
+          : step.lift
+            ? "end-4 top-[36%] -translate-y-1/2"
+            : "end-4 top-1/2 -translate-y-1/2";
 
   return (
     <>
@@ -541,7 +698,7 @@ export function TestTourGuide({ children }: { children: React.ReactNode }) {
 
           {/* Points de progression */}
           <div className="mt-4 flex items-center justify-center gap-1.5" aria-hidden>
-            {STEPS.map((s, i) => (
+            {flowSteps.map((s, i) => (
               <span
                 key={s.id}
                 className={cn(

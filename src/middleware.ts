@@ -31,6 +31,13 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL("/commencer", request.url));
   }
 
+  // /commencer stays public for anonymous browsers and test accounts; a REAL
+  // account never sees it: it is redirected to /app (the app root resolves to
+  // /app/dashboard or /app/superadmin depending on the role).
+  if (pathname === "/commencer" && accessToken && !isTestAccount) {
+    return NextResponse.redirect(new URL("/app", request.url));
+  }
+
   // /test = public demo mode: every anonymous browser gets its own throwaway
   // cabinet. Test sessions are identified by the `test: true` JWT claim of
   // their admin token.

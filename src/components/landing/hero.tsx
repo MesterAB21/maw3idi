@@ -155,7 +155,7 @@ export function Hero() {
                 Ajouter votre cabinet
               </Button>
             </Link>
-            <Link href="/signup">
+            <Link href="/test">
               <Button
                 data-hero-cta
                 data-magnetic
