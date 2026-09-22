@@ -27,55 +27,100 @@ type StepId =
 
 type WidgetPos = "center" | "right" | "top-right" | "bottom-center";
 
-interface FlowRow {
-  from?: AppointmentStatus;
-  to: AppointmentStatus;
-  reason: string;
+const PIPE_W = 150;
+const PIPE_H = 34;
+
+interface PipeNodeDef {
+  left: number;
+  top: number;
+  status: AppointmentStatus;
 }
 
-const LIFECYCLE: FlowRow[] = [
-  { from: "reserve", to: "confirmation_envoyee", reason: "Rendez-vous réservé par l'agent" },
-  { from: "confirmation_envoyee", to: "confirme", reason: "Le patient confirme sa venue" },
-  { from: "confirmation_envoyee", to: "need_call", reason: "Pas de réponse — délai dépassé, l'agent doit appeler" },
-  { from: "need_call", to: "confirme", reason: "Le patient confirme pendant l'appel" },
-  { from: "need_call", to: "annule", reason: "Patient injoignable ou décline" },
-  { from: "confirme", to: "termine", reason: "Le rendez-vous a eu lieu" },
-  { from: "confirme", to: "absent", reason: "Le patient ne se présente pas" },
+interface PipeEdgeDef {
+  fx: number;
+  fy: number;
+  tx: number;
+  ty: number;
+  label: string;
+  lx: number;
+  lt: number;
+  lw: number;
+}
+
+// Pipeline horizontal strictement de gauche à droite. « Confirmé » est
+// dupliqué volontairement (haut = depuis Confirmation envoyée, bas = depuis
+// Need Call) pour qu'aucune flèche ne reparte vers la gauche.
+const PIPE_NODES: PipeNodeDef[] = [
+  { left: 0, top: 170, status: "reserve" },
+  { left: 280, top: 170, status: "confirmation_envoyee" },
+  { left: 560, top: 80, status: "confirme" },
+  { left: 560, top: 280, status: "need_call" },
+  { left: 840, top: 0, status: "termine" },
+  { left: 840, top: 110, status: "absent" },
+  { left: 840, top: 250, status: "confirme" },
+  { left: 840, top: 340, status: "annule" },
+];
+
+const PIPE_EDGES: PipeEdgeDef[] = [
+  { fx: 150, fy: 187, tx: 280, ty: 187, label: "Rendez-vous réservé par l'agent", lx: 145, lt: 196, lw: 140 },
+  { fx: 430, fy: 187, tx: 560, ty: 97, label: "Le patient confirme sa venue", lx: 425, lt: 150, lw: 140 },
+  { fx: 430, fy: 187, tx: 560, ty: 297, label: "Pas de réponse — délai dépassé, l'agent doit appeler", lx: 410, lt: 250, lw: 160 },
+  { fx: 710, fy: 97, tx: 840, ty: 17, label: "Le rendez-vous a eu lieu", lx: 705, lt: 65, lw: 140 },
+  { fx: 710, fy: 97, tx: 840, ty: 127, label: "Le patient ne se présente pas", lx: 705, lt: 120, lw: 140 },
+  { fx: 710, fy: 297, tx: 840, ty: 267, label: "Patient confirme pendant l'appel", lx: 705, lt: 290, lw: 140 },
+  { fx: 710, fy: 297, tx: 840, ty: 357, label: "Patient injoignable ou décline", lx: 705, lt: 335, lw: 140 },
 ];
 
 function AppointmentLifecycle() {
   return (
-    <div className="flex flex-col gap-3">
-      {LIFECYCLE.map((row, i) => {
-        return (
-          <div key={i}>
-            <div className="flex items-center gap-2">
-              {row.from ? (
-                <>
-                  <StatusBadge status={row.from} size="md" />
-                  <span className="text-blue-600" aria-hidden>
-                    →
-                  </span>
-                </>
-              ) : (
-                <span className="text-[11px] font-medium uppercase tracking-wide text-gray-400">
-                  Note
-                </span>
-              )}
-              <StatusBadge status={row.to} size="md" />
-            </div>
-            <p className="mt-1 flex items-center gap-1.5 ps-1 text-[11px] text-gray-500">
-              <span className="inline-block h-px w-3 bg-gray-300" aria-hidden />
-              {row.reason}
-            </p>
+    <div className="overflow-x-auto">
+      <div className="relative" style={{ width: 990, height: 392 }}>
+        <svg className="absolute inset-0" width={990} height={392} aria-hidden>
+          <defs>
+            <marker
+              id="mwr-tour-arrow"
+              viewBox="0 0 10 10"
+              refX="8"
+              refY="5"
+              markerWidth="7"
+              markerHeight="7"
+              orient="auto-start-reverse"
+            >
+              <path d="M0,0 L10,5 L0,10 z" fill="#3b82f6" />
+            </marker>
+          </defs>
+          {PIPE_EDGES.map((e, i) => (
+            <path
+              key={i}
+              d={`M ${e.fx},${e.fy} C ${e.fx + 45},${e.fy} ${e.tx - 45},${e.ty} ${e.tx - 2},${e.ty}`}
+              fill="none"
+              stroke="#3b82f6"
+              strokeWidth={1.5}
+              markerEnd="url(#mwr-tour-arrow)"
+            />
+          ))}
+        </svg>
+        {PIPE_NODES.map((n, i) => (
+          <div
+            key={i}
+            className="absolute flex justify-center"
+            style={{ left: n.left, top: n.top, width: PIPE_W, height: PIPE_H }}
+          >
+            <StatusBadge status={n.status} size="md" />
           </div>
-        );
-      })}
-      <p className="flex items-center justify-center gap-2 rounded-lg bg-gray-50 px-3 py-2 text-[11px] text-gray-500">
-        Un rendez-vous peut aussi être
-        <StatusBadge status="annule" size="sm" />
-        directement depuis En attente ou Confirmation envoyée si le patient ou le
-        cabinet annule.
+        ))}
+        {PIPE_EDGES.map((e, i) => (
+          <div
+            key={i}
+            className="absolute text-center text-[10px] leading-snug text-gray-500"
+            style={{ left: e.lx, top: e.lt, width: e.lw }}
+          >
+            {e.label}
+          </div>
+        ))}
+      </div>
+      <p className="mt-2 text-center text-[11px] text-gray-400">
+        « Confirmé » apparaît sur deux chemins : c&apos;est le même statut.
       </p>
     </div>
   );
@@ -87,7 +132,8 @@ interface StepDef {
   target?: string;
   unionTargets?: string[];
   position: WidgetPos;
-  size?: "sm" | "md" | "lg";
+  size?: "sm" | "md" | "lg" | "xl";
+  lift?: boolean;
   title: string;
   body: React.ReactNode;
   nextText?: string;
@@ -116,6 +162,7 @@ const STEPS: StepDef[] = [
     route: "/test/calendar",
     target: "[data-tour='calendar-grid']",
     position: "right",
+    lift: true,
     title: "Calendrier",
     body: (
       <>
@@ -144,7 +191,7 @@ const STEPS: StepDef[] = [
     id: "appointments-cycle",
     route: "/test/appointments",
     position: "center",
-    size: "lg",
+    size: "xl",
     title: "Cycle des rendez-vous",
     body: (
       <>
@@ -179,6 +226,7 @@ const STEPS: StepDef[] = [
     route: "/test/agent",
     target: "[data-tour='agent-channels']",
     position: "right",
+    lift: true,
     title: "Les canaux de l'agent",
     body: (
       <>
@@ -194,6 +242,7 @@ const STEPS: StepDef[] = [
     target: "[data-tour='discussion-picker']",
     unionTargets: ["[data-tour='discussion-picker']", "[data-tour='discussion-menu']"],
     position: "right",
+    lift: true,
     title: "Nouvelle discussion",
     body: (
       <>
@@ -208,6 +257,7 @@ const STEPS: StepDef[] = [
     route: "/test/agent",
     target: "[data-tour='call-panel']",
     position: "right",
+    lift: true,
     title: "Faites votre premier appel",
     body: (
       <>
@@ -389,7 +439,9 @@ export function TestTourGuide({ children }: { children: React.ReactNode }) {
       ? "left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
       : step.position === "top-right"
         ? "top-20 end-4"
-        : "end-4 top-1/2 -translate-y-1/2";
+        : step.lift
+          ? "end-4 top-[36%] -translate-y-1/2"
+          : "end-4 top-1/2 -translate-y-1/2";
 
   return (
     <>
@@ -439,6 +491,7 @@ export function TestTourGuide({ children }: { children: React.ReactNode }) {
         className={cn(
           "mwr-tour-card fixed z-[110] w-[min(92vw,360px)] overflow-hidden rounded-2xl bg-white shadow-[0_20px_60px_rgba(15,23,42,0.35)]",
           step.size === "lg" && "max-h-[86vh] w-[min(92vw,440px)] overflow-y-auto",
+          step.size === "xl" && "max-h-[88vh] w-[min(94vw,760px)] overflow-y-auto",
           widgetPosClass
         )}
       >
