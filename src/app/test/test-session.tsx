@@ -81,6 +81,8 @@ export function TestSessionGate({ children }: { children: React.ReactNode }) {
   const [phase, setPhase] = React.useState<Phase>("checking");
   const [session, setSession] = React.useState<TestSession | null>(null);
   const [error, setError] = React.useState<string | null>(null);
+  const [cloning, setCloning] = React.useState(false);
+  const [cloneError, setCloneError] = React.useState<string | null>(null);
 
   const finalize = React.useCallback(async (init: {
     initialized: boolean;
@@ -176,23 +178,56 @@ export function TestSessionGate({ children }: { children: React.ReactNode }) {
   }
 
   // phase === "google"
+  const handleUseDefault = async () => {
+    setCloning(true);
+    setCloneError(null);
+    try {
+      const res = await api.testUseDefaultCalendar();
+      if (!res.connected) {
+        setCloneError(
+          "Aucun calendrier existant trouvé. Configurez votre calendrier ci-dessous."
+        );
+        setCloning(false);
+        return;
+      }
+      setSession((prev) =>
+        prev ? { ...prev, googleConnected: true } : prev
+      );
+      setPhase("ready");
+    } catch (err) {
+      setCloneError(err instanceof Error ? err.message : "Erreur inconnue");
+      setCloning(false);
+    }
+  };
+
   const handleConnect = async () => {
     const { url } = await api.connectGoogleCalendar();
     window.location.href = url;
   };
 
   return (
-    <CenteredCard label="Connexion Google Calendar">
+    <CenteredCard label="Calendrier Google">
       <p className="text-sm text-muted">
-        Connectez votre Google Calendar pour la démonstration. Vous serez invité
-        à vous connecter avec <strong>mesterab20@gmail.com</strong> (une seule
-        fois par cabinet test).
+        Utilisez un calendrier existant ou configurez votre calendrier.
       </p>
+      <p className="mt-2 rounded-xl bg-blue-50 p-3 text-xs text-blue-800">
+        Conseil : le choix recommandé est d'utiliser le compte calendrier par
+        défaut (<strong>mesterab20@gmail.com</strong>), réutilisé pour tous vos
+        tests sans autorisation Google supplémentaire.
+      </p>
+      {cloneError && <p className="mt-2 text-sm text-red-600">{cloneError}</p>}
+      <button
+        onClick={handleUseDefault}
+        disabled={cloning}
+        className="mt-5 w-full flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+      >
+        {cloning ? "Utilisation du calendrier par défaut…" : "Utiliser le calendrier par défaut (recommandé)"}
+      </button>
       <button
         onClick={handleConnect}
-        className="mt-5 w-full flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-blue-700"
+        className="mt-2 w-full flex items-center justify-center gap-2 rounded-xl border border-gray-200 px-6 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
       >
-        Connecter Google Calendar
+        Configurer mon calendrier
       </button>
       <button
         onClick={() => setPhase("ready")}

@@ -36,6 +36,7 @@ const fr = {
 
   // Page titles (topbar)
   "title.dashboard": "Dashboard",
+  "title.agent": "Agent IA",
   "title.appointments": "Rendez-vous",
   "title.patients": "Patients",
   "title.calendar": "Calendrier",
@@ -551,6 +552,7 @@ const ar: Record<TKey, string> = {
   "role.secretaire": "سكرتيرة",
 
   "title.dashboard": "لوحة القيادة",
+  "title.agent": "الوكيل",
   "title.appointments": "المواعيد",
   "title.patients": "المرضى",
   "title.calendar": "التقويم",

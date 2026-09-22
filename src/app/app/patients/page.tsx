@@ -81,7 +81,7 @@ export default function PatientsPage() {
           <EmptyState title={t("patients.empty")} />
         </div>
       ) : (
-        <div className="overflow-hidden rounded-lg border border-hairline bg-canvas">
+        <div className="overflow-hidden rounded-lg border border-hairline bg-canvas" data-tour="patients-table">
           {/* Desktop table */}
           <div className="hidden overflow-x-auto md:block">
             <table className="text-start">

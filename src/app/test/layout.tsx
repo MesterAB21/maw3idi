@@ -5,6 +5,7 @@ import * as React from "react";
 import { AppProvider } from "@/lib/app-context";
 import { AppShell } from "@/components/app/app-shell";
 import { TestSessionGate } from "./test-session";
+import { TestTourGuide } from "./test-tour";
 
 export default function TestLayout({
   children,
@@ -14,7 +15,9 @@ export default function TestLayout({
   return (
     <TestSessionGate>
       <AppProvider>
-        <AppShell basePath="/test">{children}</AppShell>
+        <AppShell basePath="/test">
+          <TestTourGuide>{children}</TestTourGuide>
+        </AppShell>
       </AppProvider>
     </TestSessionGate>
   );

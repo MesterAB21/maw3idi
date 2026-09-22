@@ -24,7 +24,7 @@ function getMeta(basePath: "/app" | "/test", pathname: string, cabinetName: stri
   if (pathname.startsWith(`${basePath}/team`))
     return { titleKey: "title.team", subtitle: cabinetName };
   if (pathname.startsWith(`${basePath}/agent`))
-    return { titleKey: "title.dashboard", subtitle: `${cabinetName} · Agent IA` };
+    return { titleKey: "title.agent", subtitle: `${cabinetName} · Agent IA` };
   if (pathname.startsWith(`${basePath}/superadmin`))
     return { titleKey: "superadmin.title", subtitle: "MAW3IDI" };
   return { titleKey: "title.dashboard", subtitle: cabinetName };

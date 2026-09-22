@@ -137,7 +137,7 @@ function ConversationPicker({
   const selected = conversations.find((c) => c.id === selectedId);
 
   return (
-    <div ref={ref} className="relative">
+    <div ref={ref} className="relative" data-tour="discussion-picker">
       <button
         type="button"
         disabled={disabled}
@@ -155,7 +155,10 @@ function ConversationPicker({
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full z-20 mt-1 w-72 rounded-xl border border-gray-200 bg-white p-1.5 shadow-lg">
+        <div
+          data-tour="discussion-menu"
+          className="absolute right-0 top-full z-20 mt-1 w-72 rounded-xl border border-gray-200 bg-white p-1.5 shadow-lg"
+        >
           <p className="px-2 py-1 text-[11px] font-medium uppercase tracking-wide text-gray-400">
             Discussions
           </p>
@@ -431,7 +434,7 @@ function CallTab({
   const transcript = finalFrame?.transcript ?? [];
 
   return (
-    <div className="flex flex-1 flex-col h-full">
+    <div className="flex flex-1 flex-col h-full" data-tour="call-panel">
       <div className="flex items-center gap-3 border-b border-gray-200 bg-white px-4 py-3">
         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-50 text-blue-600">
           <Phone className="h-4 w-4" />
@@ -556,6 +559,7 @@ function CallTab({
               <div className="flex flex-col items-center gap-2">
                 <button
                   aria-label="Démarrer l'appel"
+                  data-tour="call-start"
                   onClick={() => void startCall()}
                   className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-blue-700 text-white shadow-[0_8px_24px_rgba(59,130,246,0.35)] transition-transform duration-200 ease-out hover:scale-105 active:scale-95"
                 >
@@ -1100,7 +1104,7 @@ export default function AgentTestTab() {
 
       <div className="flex items-center justify-between gap-4 border-b border-gray-200 bg-white px-4 py-4 sm:px-6">
         <h2 className="text-xl font-semibold text-gray-900">Agent IA</h2>
-        <div className="flex items-center gap-1 rounded-xl bg-gray-100 p-1">
+        <div className="flex items-center gap-1 rounded-xl bg-gray-100 p-1" data-tour="agent-channels">
           <button
             onClick={() => setSubTab("call")}
             className={cn(

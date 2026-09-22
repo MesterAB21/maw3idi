@@ -381,7 +381,7 @@ export default function CalendarPage() {
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
         {/* Views */}
-        <div>
+        <div data-tour="calendar-grid">
           {view === "MONTH" ? (
             <MonthView anchor={anchor} byKey={byKey} googleByKey={googleByKey} onSelectDay={selectDay} />
           ) : view === "WEEK" ? (

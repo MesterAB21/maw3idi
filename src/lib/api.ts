@@ -731,6 +731,20 @@ export const api = {
     });
     return handleResponse(res);
   },
+
+  // Reuse the default calendar account (credentials from the most recently
+  // connected cabinet_test) instead of forcing a fresh Google authorization.
+  async testUseDefaultCalendar(): Promise<{
+    connected: boolean;
+    email: string;
+  }> {
+    const res = await fetch(`${API_BASE}/test/google/use-default`, {
+      method: "POST",
+      headers: buildHeaders(),
+      credentials: "include",
+    });
+    return handleResponse(res);
+  },
 };
 
 export type { };
