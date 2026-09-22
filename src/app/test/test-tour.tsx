@@ -616,7 +616,7 @@ export function TestTourGuide({ children }: { children: React.ReactNode }) {
   const isAgentStep = step.route === "/test/agent";
   const widgetPosClass =
     step.position === "center"
-      ? isAgentStep
+      ? isAgentStep && step.id !== "welcome"
         ? "left-1/2 top-[70%] -translate-x-1/2 -translate-y-1/2"
         : "left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
       : step.position === "top-right"
