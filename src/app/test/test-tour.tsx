@@ -27,12 +27,10 @@ type StepId =
 
 type WidgetPos = "center" | "right" | "top-right" | "bottom-center";
 
-const PIPE_W = 150;
-const PIPE_H = 34;
-
 interface PipeNodeDef {
   left: number;
   top: number;
+  w: number;
   status: AppointmentStatus;
 }
 
@@ -47,35 +45,36 @@ interface PipeEdgeDef {
   lw: number;
 }
 
-// Pipeline horizontal strictement de gauche à droite. « Confirmé » est
-// dupliqué volontairement (haut = depuis Confirmation envoyée, bas = depuis
-// Need Call) pour qu'aucune flèche ne reparte vers la gauche.
+// Pipeline horizontal strictement de gauche à droite, entièrement visible
+// (680px) sans scroll horizontal. « Confirmé » est dupliqué volontairement
+// (haut = depuis Confirmation envoyée, bas = depuis Need Call) pour qu'aucune
+// flèche ne reparte vers la gauche.
 const PIPE_NODES: PipeNodeDef[] = [
-  { left: 0, top: 170, status: "reserve" },
-  { left: 280, top: 170, status: "confirmation_envoyee" },
-  { left: 560, top: 80, status: "confirme" },
-  { left: 560, top: 280, status: "need_call" },
-  { left: 840, top: 0, status: "termine" },
-  { left: 840, top: 110, status: "absent" },
-  { left: 840, top: 250, status: "confirme" },
-  { left: 840, top: 340, status: "annule" },
+  { left: 0, top: 234, w: 100, status: "reserve" },
+  { left: 140, top: 234, w: 140, status: "confirmation_envoyee" },
+  { left: 400, top: 78, w: 100, status: "confirme" },
+  { left: 400, top: 312, w: 100, status: "need_call" },
+  { left: 580, top: 0, w: 100, status: "termine" },
+  { left: 580, top: 156, w: 100, status: "absent" },
+  { left: 580, top: 390, w: 100, status: "confirme" },
+  { left: 580, top: 468, w: 100, status: "annule" },
 ];
 
 const PIPE_EDGES: PipeEdgeDef[] = [
-  { fx: 150, fy: 187, tx: 280, ty: 187, label: "Rendez-vous réservé par l'agent", lx: 145, lt: 196, lw: 140 },
-  { fx: 430, fy: 187, tx: 560, ty: 97, label: "Le patient confirme sa venue", lx: 425, lt: 150, lw: 140 },
-  { fx: 430, fy: 187, tx: 560, ty: 297, label: "Pas de réponse — délai dépassé, l'agent doit appeler", lx: 410, lt: 250, lw: 160 },
-  { fx: 710, fy: 97, tx: 840, ty: 17, label: "Le rendez-vous a eu lieu", lx: 705, lt: 65, lw: 140 },
-  { fx: 710, fy: 97, tx: 840, ty: 127, label: "Le patient ne se présente pas", lx: 705, lt: 120, lw: 140 },
-  { fx: 710, fy: 297, tx: 840, ty: 267, label: "Patient confirme pendant l'appel", lx: 705, lt: 290, lw: 140 },
-  { fx: 710, fy: 297, tx: 840, ty: 357, label: "Patient injoignable ou décline", lx: 705, lt: 335, lw: 140 },
+  { fx: 100, fy: 251, tx: 140, ty: 251, label: "Rendez-vous réservé par l'agent", lx: 55, lt: 276, lw: 130 },
+  { fx: 280, fy: 251, tx: 400, ty: 95, label: "Le patient confirme sa venue", lx: 280, lt: 181, lw: 120 },
+  { fx: 280, fy: 251, tx: 400, ty: 329, label: "Pas de réponse — délai dépassé, l'agent doit appeler", lx: 265, lt: 298, lw: 130 },
+  { fx: 500, fy: 95, tx: 580, ty: 17, label: "Le rendez-vous a eu lieu", lx: 545, lt: 64, lw: 130 },
+  { fx: 500, fy: 95, tx: 580, ty: 173, label: "Le patient ne se présente pas", lx: 405, lt: 150, lw: 120 },
+  { fx: 500, fy: 329, tx: 580, ty: 407, label: "Patient confirme pendant l'appel", lx: 380, lt: 376, lw: 130 },
+  { fx: 500, fy: 329, tx: 580, ty: 485, label: "Patient injoignable ou décline", lx: 405, lt: 415, lw: 130 },
 ];
 
 function AppointmentLifecycle() {
   return (
-    <div className="overflow-x-auto">
-      <div className="relative" style={{ width: 990, height: 392 }}>
-        <svg className="absolute inset-0" width={990} height={392} aria-hidden>
+    <div>
+      <div className="relative mx-auto" style={{ width: 680, height: 510 }}>
+        <svg className="absolute inset-0" width={680} height={510} aria-hidden>
           <defs>
             <marker
               id="mwr-tour-arrow"
@@ -103,10 +102,10 @@ function AppointmentLifecycle() {
         {PIPE_NODES.map((n, i) => (
           <div
             key={i}
-            className="absolute flex justify-center"
-            style={{ left: n.left, top: n.top, width: PIPE_W, height: PIPE_H }}
+            className="absolute flex h-[34px] items-center justify-center"
+            style={{ left: n.left, top: n.top, width: n.w }}
           >
-            <StatusBadge status={n.status} size="md" />
+            <StatusBadge status={n.status} size="sm" />
           </div>
         ))}
         {PIPE_EDGES.map((e, i) => (
@@ -242,7 +241,6 @@ const STEPS: StepDef[] = [
     target: "[data-tour='discussion-picker']",
     unionTargets: ["[data-tour='discussion-picker']", "[data-tour='discussion-menu']"],
     position: "right",
-    lift: true,
     title: "Nouvelle discussion",
     body: (
       <>
@@ -469,8 +467,8 @@ export function TestTourGuide({ children }: { children: React.ReactNode }) {
 
       <style jsx global>{`
         @keyframes mwr-tour-fade {
-          from { opacity: 0; transform: translateY(6px); }
-          to { opacity: 1; transform: translateY(0); }
+          from { opacity: 0; }
+          to { opacity: 1; }
         }
         @keyframes mwr-tour-pulse {
           0%, 100% { box-shadow: 0 0 0 0 rgba(59,130,246,0.7); }
