@@ -9,9 +9,9 @@ FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-ARG API_BACKEND_URL=https://maw3idi-backend.onrender.com
+ARG API_BACKEND_URL=https://maw3idi-backend-wo23.onrender.com
 ARG META_APP_SECRET=maw3idi-test-meta-app-secret
-ARG NEXT_PUBLIC_TEST_AGENT_URL=https://maw3idi-agent.onrender.com/webhooks/test
+ARG NEXT_PUBLIC_TEST_AGENT_URL=https://maw3idi-agent-7z4f.onrender.com/webhooks/test
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV API_BACKEND_URL=$API_BACKEND_URL
 ENV NEXT_PUBLIC_META_APP_SECRET=$META_APP_SECRET

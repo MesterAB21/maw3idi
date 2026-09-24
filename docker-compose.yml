@@ -4,9 +4,9 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        - API_BACKEND_URL=https://maw3idi-backend.onrender.com
+        - API_BACKEND_URL=https://maw3idi-backend-wo23.onrender.com
         - META_APP_SECRET=${META_APP_SECRET:-maw3idi-test-meta-app-secret}
-        - NEXT_PUBLIC_TEST_AGENT_URL=${NEXT_PUBLIC_TEST_AGENT_URL:-https://maw3idi-agent.onrender.com/webhooks/test}
+        - NEXT_PUBLIC_TEST_AGENT_URL=${NEXT_PUBLIC_TEST_AGENT_URL:-https://maw3idi-agent-7z4f.onrender.com/webhooks/test}
     container_name: maw3idi-frontend
     ports:
       - "3000:3000"

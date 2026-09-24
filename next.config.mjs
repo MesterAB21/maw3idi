@@ -1,5 +1,5 @@
 /** @type {import('next').NextConfig} */
-const API_BACKEND = process.env.API_BACKEND_URL || "https://maw3idi-backend.onrender.com";
+const API_BACKEND = process.env.API_BACKEND_URL || "https://maw3idi-backend-wo23.onrender.com";
 
 const nextConfig = {
   reactStrictMode: false,

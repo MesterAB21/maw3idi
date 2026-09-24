@@ -3,10 +3,10 @@ import { NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 
 const BACKEND_HEALTH =
-  process.env.API_BACKEND_URL ?? "https://maw3idi-backend.onrender.com";
+  process.env.API_BACKEND_URL ?? "https://maw3idi-backend-wo23.onrender.com";
 
 const AGENT_BASE =
-  process.env.NEXT_PUBLIC_TEST_AGENT_URL ?? "https://maw3idi-agent.onrender.com/webhooks/test";
+  process.env.NEXT_PUBLIC_TEST_AGENT_URL ?? "https://maw3idi-agent-7z4f.onrender.com/webhooks/test";
 
 function agentHealthUrl(agentUrl: string): string {
   return `${agentUrl.replace(/\/webhooks\/test\/?$/, "").replace(/\/$/, "")}/health`;
