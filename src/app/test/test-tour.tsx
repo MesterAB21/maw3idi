@@ -172,7 +172,7 @@ const SETUP_STEPS: StepDef[] = [
     body: (
       <>
         Le cabinet de démonstration est prêt : <strong>Brain Care</strong> à
-        Achour (Alger), avec votre secrétaire IA <strong>Walid</strong>. Nom,
+        Achour (Alger), avec votre secrétaire IA <strong>Maria</strong>. Nom,
         localisation et numéros de contact sont pré-remplis et modifiables dans
         Réglages.
       </>
